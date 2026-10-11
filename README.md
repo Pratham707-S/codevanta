@@ -60,14 +60,58 @@ For long-term roadmap details, see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## 👥 Team & Ownership
 
-RepoGuard is developed collaboratively with defined module ownership:
+RepoGuard is developed collaboratively with strict modular monolith ownership:
 
-* **Pratham:** Repair workflow, patch validation, verification runner integration.
-* **Ayan:** CLI commands, configuration management, terminal and JSON output formatting.
-* **Manni:** Repository discovery, safe file scanning, metadata extraction.
-* **Lead Architect:** AI provider contracts, analysis quality, Finding schemas, fixtures, and core integration.
+* **Team Lead:** CLI interface & routing (`src/cli/`), application use cases (`src/application/`), shared domain schemas (`src/domain/`), AI analysis agents (`src/analysis/`), provider adapters (`src/providers/`), and utilities (`src/utils/`).
+* **Pratham:** Repair proposal engine (`src/repair/`), verification runner & Docker sandboxing (`src/verification/`), and domain repair/verification contracts.
+* **Ayan:** Configuration loader & schemas (`src/config/`), local state persistence (`src/storage/`), report generators (`src/report/`), and examples (`examples/`). *(CLI is owned by Team Lead).*
+* **Manni:** Repository root discovery & file traversal (`src/repository/`), bounded context assembly & secret redaction (`src/context/`), and repository domain models.
 
 See [docs/TEAM_TASKS.md](docs/TEAM_TASKS.md) for detailed task breakdowns and acceptance criteria.
+
+---
+
+## 🚀 Getting Started & Team Development
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Pratham707-S/repoguard.git
+cd repoguard
+```
+
+### 2. Install Dependencies
+```bash
+# Node.js >= 22 required (see .nvmrc)
+nvm use 22
+npm install
+```
+
+### 3. Build & Verify
+```bash
+# Type check all source files, tests, and scripts
+npm run typecheck
+
+# Run test suite
+npm test
+
+# Build production bundle to dist/
+npm run build
+```
+
+### 4. Working on an Assigned Module
+All modules export their public API via clean `index.ts` barrel files, with path aliases mapped to `@repoguard/*`:
+- `@repoguard/domain`: Domain contracts and entities
+- `@repoguard/context`: Bounded context and secret redaction
+- `@repoguard/repository`: File walking and discovery
+- `@repoguard/analysis`: Rule engine and AI analysis orchestrator
+- `@repoguard/providers`: LLM provider adapters
+- `@repoguard/repair`: Patch parsing and proposal generation
+- `@repoguard/verification`: Controlled subprocess check execution
+- `@repoguard/config`: Configuration schema and loader
+- `@repoguard/storage`: Local state and run persistence
+- `@repoguard/report`: Markdown and JSON report builders
+
+Always coordinate shared domain schemas in `src/domain/` with the team before introducing cross-module contract changes.
 
 ---
 

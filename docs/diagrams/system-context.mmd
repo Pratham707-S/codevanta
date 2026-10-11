@@ -1,0 +1,14 @@
+graph TD
+    User([Developer / CI]) -->|CLI Commands| CLI[CLI Layer]
+    CLI --> App[Application Layer]
+    App --> Scanner[Repository Scanner]
+    App --> Context[Context Builder & Redactor]
+    App --> AI[AI Provider Adapter]
+    App --> Repair[Repair Orchestrator]
+    App --> Verifier[Verification Runner]
+    App --> Reporter[Report Generator]
+
+    Scanner --> LocalDisk[(Local Repository)]
+    Repair --> LocalDisk
+    Verifier --> Sandbox[(Disposable Workspace)]
+    Reporter --> ReportOut[(Markdown / JSON Reports)]

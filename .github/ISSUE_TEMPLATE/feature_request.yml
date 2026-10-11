@@ -1,0 +1,18 @@
+name: Feature Request
+description: Propose a feature or enhancement for RepoGuard
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Feature
+      description: Clear description of the proposed feature and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: architecture
+    attributes:
+      label: Architectural Impact
+      description: Which modules are impacted? (cli, application, domain, scanner, repair, verification, etc.)
+    validations:
+      required: false

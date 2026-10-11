@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RepoGuard — Master Project Guide</title>
+<style>
+:root{--bg:#0b1020;--panel:#121b2e;--panel2:#192641;--text:#eef3ff;--muted:#aab6ce;--line:#2b3a56;--accent:#91bbff;--mint:#9ee6ca;--gold:#ffd79b}
+[data-theme="light"]{--bg:#f3f6fb;--panel:#fff;--panel2:#edf2fa;--text:#182238;--muted:#59667d;--line:#d8e0ed;--accent:#3159da;--mint:#176b4d;--gold:#8b5a0a}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:75px}body{margin:0;background:var(--bg);color:var(--text);font:15.5px/1.7 system-ui,-apple-system,"Segoe UI",sans-serif}
+.top{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--line);padding:10px max(15px,calc((100vw - 1180px)/2));display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{font-weight:900;letter-spacing:-.03em}.brand span{color:var(--mint)}button{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:8px 11px;border-radius:9px;cursor:pointer;font:inherit}
+.layout{max-width:1180px;margin:auto;padding:22px;display:grid;grid-template-columns:225px minmax(0,1fr);gap:25px}.nav{position:sticky;top:68px;align-self:start;max-height:calc(100vh - 80px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}.nav b{display:block;font-size:.74rem;letter-spacing:.12em;color:var(--muted);margin:5px 8px 8px}.nav a{display:block;text-decoration:none;color:var(--muted);font-size:.86rem;padding:6px 8px;border-radius:7px}.nav a:hover{background:var(--panel2);color:var(--text)}main{min-width:0}.hero{padding:36px 0 26px}.eyebrow{font-size:.76rem;letter-spacing:.15em;text-transform:uppercase;color:var(--mint);font-weight:850}h1{font-size:clamp(2.7rem,7vw,5rem);line-height:1;letter-spacing:-.06em;margin:13px 0 20px}h2{font-size:1.55rem;line-height:1.2;letter-spacing:-.03em;margin:0}h3{font-size:1.04rem;margin:0 0 7px}.lead{font-size:1.1rem;max-width:800px;color:var(--muted)}p{color:var(--muted);margin:7px 0}.pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:18px}.pill,.tag{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:3px 9px;font-size:.77rem;color:var(--muted)}.banner{background:var(--panel2);border:1px solid var(--line);padding:14px 16px;border-radius:12px;margin:15px 0 28px}.banner strong{color:var(--gold)}section{margin:30px 0 42px;scroll-margin-top:80px}.head{display:flex;gap:11px;align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:11px;margin-bottom:17px}.num{font-size:.8rem;color:var(--mint);font-weight:900}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;min-width:0}.card li,.card p,li{color:var(--muted)}.kicker{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--mint);font-weight:850;margin-bottom:6px}.note{border-left:3px solid var(--mint);background:var(--panel2);padding:12px 14px;border-radius:0 9px 9px 0;margin:13px 0;color:var(--muted)}.warn{border-left-color:var(--gold)}.flow{display:flex;gap:7px;align-items:stretch;overflow-x:auto;padding:7px 0 13px}.node{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:10px;text-align:center;padding:12px}.node b{display:block}.node small{color:var(--muted)}.arrow{align-self:center;color:var(--mint);font-weight:900}.tree{white-space:pre;overflow:auto;background:#080d17;color:#d5e2ff;border:1px solid var(--line);padding:16px;border-radius:11px;font:13px/1.55 ui-monospace,Menlo,monospace}pre{white-space:pre;overflow:auto;background:#080d17;color:#d5e2ff;border:1px solid var(--line);padding:16px;border-radius:11px;font:13px/1.65 ui-monospace,Menlo,monospace}code{background:var(--panel2);border:1px solid var(--line);padding:2px 5px;border-radius:5px;color:var(--text);font-size:.9em}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:10px}table{width:100%;border-collapse:collapse;min-width:600px}th,td{text-align:left;padding:11px;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2)}td{color:var(--muted)}tr:last-child td{border-bottom:0}.command{display:grid;grid-template-columns:165px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.command:last-child{border:0}.timeline{border-left:2px solid var(--line);margin:14px 0 0 10px;padding-left:22px}.phase{position:relative;margin-bottom:22px}.phase:before{content:"";position:absolute;left:-29px;top:8px;width:11px;height:11px;border-radius:50%;background:var(--mint)}.checklist{list-style:none;padding:0}.checklist li{padding:9px 0;border-bottom:1px solid var(--line)}input{accent-color:var(--mint);margin-right:8px}footer{border-top:1px solid var(--line);margin-top:45px;padding-top:18px;color:var(--muted);font-size:.88rem}
+@media(max-width:850px){.tree{font-size:11px}.layout{grid-template-columns:1fr;padding:14px}.nav{position:static;max-height:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.nav b{grid-column:1/-1}.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:570px){.grid,.grid3{grid-template-columns:1fr}.command{grid-template-columns:1fr;gap:2px}.hero{padding-top:20px}.nav{grid-template-columns:1fr 1fr}.top{padding:9px 13px}}@media print{.tree{white-space:pre-wrap;font-size:8pt;background:#fff;color:#111}.top,.nav{display:none}.layout{display:block;padding:0}.card{break-inside:avoid}body{background:#fff;color:#111}.card p,.card li,p,td,li,footer{color:#444}}
+</style>
+</head>
+<body data-theme="dark">
+<div class="top"><div class="brand">REPO<span>GUARD</span> <span style="color:var(--muted);font-weight:500">/ master project guide</span></div><div><button id="theme">☼ Light mode</button> <button onclick="window.print()">Print / Save PDF</button></div></div>
+<div class="layout">
+<aside class="nav"><b>CONTENTS</b><a href="#overview">Project vision</a><a href="#problem">Problem & promise</a><a href="#cli">CLI commands</a><a href="#architecture">Architecture</a><a href="#folders">Folder structure</a><a href="#full-tree">Full file tree</a><a href="#module-responsibilities">Module ownership</a><a href="#mvp-acceptance">MVP acceptance</a><a href="#features">All 15 features</a><a href="#roadmap">Build roadmap</a><a href="#team">Four-person team</a><a href="#contracts">Shared contracts</a><a href="#ai">AI coding workflow</a><a href="#safety">Safety rules</a><a href="#demo">Demo checklist</a><a href="#later">Later features</a></aside>
+<main>
+<header class="hero" id="overview"><div class="eyebrow">Product · Architecture · CLI · Team execution</div><h1>Fix with evidence.<br><span style="color:var(--mint)">Verify before trust.</span></h1><p class="lead"><strong>RepoGuard</strong> is planned as a CLI-first AI software reliability assistant. It helps developers understand a repository, investigate risks, propose repairs, verify changes in a controlled workspace, and preserve evidence of what happened.</p><div class="pills"><span class="pill">CLI-first</span><span class="pill">Node.js + TypeScript proposed</span><span class="pill">Human-approved edits</span><span class="pill">Four-person team</span><span class="pill">Evidence-led</span></div></header>
+<div class="banner"><strong>Read this status carefully:</strong> RepoGuard was intentionally left empty while architecture decisions are being made. This guide describes the target design. Commands, folders, and features are not implemented until code and tests prove they work. The immediate goal is one small, reliable end-to-end MVP—not all 15 features at once.</div>
+
+<section id="problem"><div class="head"><span class="num">01</span><h2>Problem and product promise</h2></div><div class="grid"><article class="card"><div class="kicker">Problem</div><h3>Tools and evidence are fragmented</h3><p>Developers switch between code review, static analysis, AI chat, test logs, runtime alerts and GitHub changes. Important context is scattered.</p></article><article class="card"><div class="kicker">Problem</div><h3>An AI patch is not proof</h3><p>A plausible suggestion can still break behavior. Generated, applied and verified are separate states and must never be reported as the same thing.</p></article><article class="card"><div class="kicker">Promise</div><h3>One inspectable workflow</h3><p>Connect scan → evidence-backed finding → patch proposal → verification → final report, while the developer stays in control.</p></article><article class="card"><div class="kicker">Long-term vision</div><h3>Reuse verified outcomes</h3><p>Later, store successful and failed repair evidence to help identify similar risks in authorized connected repositories.</p></article></div><div class="note"><strong>Pitch:</strong> “RepoGuard turns code analysis and proposed fixes into a continuous, evidence-backed workflow—from a developer’s terminal to safer changes across connected repositories.”</div></section>
+
+<section id="cli"><div class="head"><span class="num">02</span><h2>How the CLI works in a terminal</h2></div><p>The CLI is the developer’s local interface. It discovers the current project, applies safe file rules, calls analysis/repair workflows, and prints results. AI does not magically become functional just because a config file exists: every command must be implemented and connected to a real workflow.</p><pre># From inside an existing project (proposed commands)
+npx repoguard init
+npx repoguard scan
+npx repoguard review
+npx repoguard findings
+npx repoguard fix FINDING-001
+npx repoguard test REPAIR-001
+npx repoguard status SCAN-001
+npx repoguard config</pre><p>These command names are proposals. Confirm the package name and command contract before implementation; do not advertise them as working until tested.</p>
+<div class="command"><div><code>init</code><br><span class="tag">Setup</span></div><div><strong>Purpose</strong><p>Detect project root, explain what RepoGuard will read, and create a minimal config only after approval. Never inject imports into application source files.</p><strong>Output</strong><p>Config path, detected project, exclusions and next command.</p></div></div>
+<div class="command"><div><code>scan</code><br><span class="tag">Analyze</span></div><div><strong>Purpose</strong><p>Discover supported files, ignore dependencies/generated content/secrets, build bounded context, and run configured analysis.</p><strong>Output</strong><p>Scan ID, progress, findings count and report location.</p></div></div>
+<div class="command"><div><code>review</code> / <code>findings</code></div><div><strong>Purpose</strong><p>Show severity, path/line evidence, explanation, confidence/uncertainty and suggested next steps.</p><strong>Output</strong><p>Evidence must be distinguished from AI hypotheses.</p></div></div>
+<div class="command"><div><code>fix FINDING-ID</code></div><div><strong>Purpose</strong><p>Create a targeted patch tied to one finding. Default to displaying a diff; modifying project files requires explicit approval.</p><strong>Output</strong><p>Repair ID, changed paths, rationale and patch status.</p></div></div>
+<div class="command"><div><code>test REPAIR-ID</code></div><div><strong>Purpose</strong><p>Run only approved checks against the candidate patch in a disposable controlled workspace.</p><strong>Output</strong><p>Actual command, exit code, duration, bounded output and pass/fail/not-run status.</p></div></div>
+<div class="command"><div><code>status SCAN-ID</code></div><div><strong>Purpose</strong><p>Read the real run state from local records in a local-only MVP, or persistent storage if a hosted backend is later justified.</p></div></div>
+<div class="command"><div><code>config</code></div><div><strong>Purpose</strong><p>Show validated settings and safe diagnostics without printing credentials. AI calls need a supported provider adapter and valid credentials.</p></div></div>
+<div class="note warn"><strong>Key distinction:</strong> config setup is not implementation. It does not automatically provide repository scanning, model calls, repair generation, sandbox verification, GitHub access or any of the 15 capabilities.</div></section>
+
+<section id="architecture"><div class="head"><span class="num">03</span><h2>Architecture: prove one vertical slice first</h2></div><p>Start with a modular monolith: one CLI and one application process. Add a remote API, worker, database, GitHub App or separate sandbox service only when a concrete accepted milestone needs it.</p><div class="flow"><div class="node"><b>CLI</b><small>Command + config</small></div><span class="arrow">→</span><div class="node"><b>Scanner</b><small>Safe file inventory</small></div><span class="arrow">→</span><div class="node"><b>Context builder</b><small>Bounded snippets</small></div><span class="arrow">→</span><div class="node"><b>AI adapter</b><small>Structured findings</small></div></div><div class="flow"><div class="node"><b>Finding</b><small>Evidence + location</small></div><span class="arrow">→</span><div class="node"><b>Patch proposal</b><small>Reviewable diff</small></div><span class="arrow">→</span><div class="node"><b>Verification</b><small>Controlled checks</small></div><span class="arrow">→</span><div class="node"><b>Report</b><small>Real result</small></div></div><div class="grid"><article class="card"><h3>CLI layer</h3><p>Argument parsing, prompts, command routing, exit codes and readable terminal output.</p></article><article class="card"><h3>Application layer</h3><p>Coordinates scan/review/repair/test use cases and maps failures to stable results.</p></article><article class="card"><h3>Intelligence layer</h3><p>File filtering, context building, AI adapter and output schema validation.</p></article><article class="card"><h3>Repair and verification</h3><p>Diff generation, approval gate, temporary workspace, allowlisted checks and evidence.</p></article></div><h3 style="margin-top:18px">Hosted architecture — later only</h3><p>CLI → authenticated API → queue/worker → analysis/repair → isolated sandbox → persisted evidence → approved GitHub PR. GitHub automation needs an authorized GitHub App, least-privilege permissions, commit-SHA pinning and webhook signature verification. An npm CLI by itself cannot perform a complete remote PR workflow.</p></section>
+
+<section id="folders"><div class="head"><span class="num">04</span><h2>Complete folder structure &amp; team ownership</h2></div><p>This is the full proposed tree, merged into the master guide. Files are planned, not already implemented. Start with the MVP; introduce later modules only when their phase begins.</p></section>
+<section id="full-tree">
+<h2>Full folder &amp; file tree — owner names included</h2>
+<p>Files marked <span class="tag">MVP</span> belong in the first working vertical slice. <span class="tag">Later</span> means reserve the location only when the relevant phase begins; avoid empty placeholder files.</p>
+<div class="note"><strong>Folder owner legend:</strong> <span class="tag">TEAM LEAD: cli, domain, application, analysis, providers, utils</span> <span class="tag">PRATHAM: repair, verification</span> <span class="tag">AYAN: config, storage, report, examples</span> <span class="tag">MANNI: repository, context</span> <span class="tag">[Later]: deferred</span><br><strong>Important:</strong> the CLI folder and all command files belong to the Team Lead. Ayan is not assigned CLI work.</div>
+<div class="tree">repoguard/
+├── README.md
+├── AGENTS.md                                  # general AI coding rules
+├── GEMINI.md                                  # Gemini workflow constraints
+├── LICENSE
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+├── CHANGELOG.md
+├── .gitignore
+├── .npmrc
+├── .nvmrc
+├── .editorconfig
+├── .prettierrc.json
+├── eslint.config.js
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+├── tsconfig.build.json
+├── vitest.config.ts
+├── .env.example
+│
+├── .github/ # Shared — Team Lead coordinates
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml
+│   │   ├── feature_request.yml
+│   │   └── config.yml
+│   └── workflows/
+│       ├── ci.yml
+│       ├── lint.yml
+│       ├── test.yml
+│       └── release.yml                         [Later]
+│
+├── docs/ # Shared — Team Lead coordinates
+│   ├── PROJECT_GUIDE.html
+│   ├── ARCHITECTURE.md
+│   ├── ROADMAP.md
+│   ├── TEAM_TASKS.md
+│   ├── API_AND_TYPES.md
+│   ├── THREAT_MODEL.md
+│   ├── CONFIGURATION.md
+│   ├── CLI_REFERENCE.md
+│   ├── ERROR_HANDLING.md
+│   ├── TESTING_STRATEGY.md
+│   ├── ADR/
+│   │   ├── 0001-modular-monolith.md
+│   │   ├── 0002-provider-abstraction.md
+│   │   └── 0003-safe-repair-workflow.md
+│   ├── runbooks/
+│   │   ├── local-development.md
+│   │   ├── release-process.md
+│   │   └── incident-response.md              [Later]
+│   └── diagrams/
+│       └── system-context.mmd
+│
+├── scripts/ # Shared — assigned per task
+│   ├── check-env.ts
+│   ├── clean.ts
+│   ├── build.ts
+│   └── package-cli.ts
+│
+├── src/ # Source code
+│   ├── index.ts                                # executable entry
+│   ├── cli/                                      # TEAM LEAD — CLI stays with you
+│   │   ├── cli.ts                              # command registration
+│   │   ├── parse-args.ts
+│   │   ├── help.ts
+│   │   ├── output/
+│   │   │   ├── terminal.ts
+│   │   │   ├── json.ts
+│   │   │   ├── tables.ts
+│   │   │   └── progress.ts
+│   │   └── commands/
+│   │       ├── init.command.ts                 # MVP
+│   │       ├── scan.command.ts                 # MVP
+│   │       ├── review.command.ts               # MVP
+│   │       ├── findings.command.ts             # MVP
+│   │       ├── fix.command.ts                  # later phase
+│   │       ├── test.command.ts                 # MVP/basic
+│   │       ├── status.command.ts
+│   │       └── config.command.ts
+│   │
+│   ├── application/                               # TEAM LEAD coordinates integration
+│   │   ├── app.ts
+│   │   ├── container.ts                        # dependency wiring
+│   │   ├── use-cases/
+│   │   │   ├── initialize-project.use-case.ts
+│   │   │   ├── scan-repository.use-case.ts
+│   │   │   ├── review-findings.use-case.ts
+│   │   │   ├── get-findings.use-case.ts
+│   │   │   ├── propose-repair.use-case.ts
+│   │   │   ├── verify-repair.use-case.ts
+│   │   │   └── search-repair-memory.use-case.ts [Later]
+│   │   └── ports/
+│   │       ├── repository-scanner.port.ts
+│   │       ├── ai-provider.port.ts
+│   │       ├── patch-writer.port.ts
+│   │       ├── test-runner.port.ts
+│   │       ├── memory-store.port.ts             [Later]
+│   │       └── github.port.ts                   [Later]
+│   │
+│   ├── domain/                                    # TEAM LEAD — shared contracts
+│   │   ├── findings/
+│   │   │   ├── finding.ts
+│   │   │   ├── finding-severity.ts
+│   │   │   └── finding-status.ts
+│   │   ├── repository/                                # MANNI — repository discovery/files
+│   │   │   ├── repository-info.ts
+│   │   │   └── source-file.ts
+│   │   ├── repair/                                    # PRATHAM — repair workflow
+│   │   │   ├── repair-proposal.ts
+│   │   │   ├── patch.ts
+│   │   │   └── repair-status.ts
+│   │   ├── verification/                              # PRATHAM — controlled checks
+│   │   │   └── verification-result.ts
+│   │   ├── evidence/
+│   │   │   └── evidence-reference.ts
+│   │   └── shared/
+│   │       ├── result.ts
+│   │       ├── errors.ts
+│   │       └── identifiers.ts
+│   │
+│   ├── repository/                             # local repo access
+│   │   ├── discovery/
+│   │   │   ├── find-repository-root.ts
+│   │   │   ├── detect-language.ts
+│   │   │   └── detect-project-tools.ts
+│   │   ├── files/
+│   │   │   ├── walk-files.ts
+│   │   │   ├── ignore-rules.ts
+│   │   │   ├── read-source-file.ts
+│   │   │   └── file-size-limits.ts
+│   │   ├── git/
+│   │   │   ├── git-status.ts
+│   │   │   ├── diff-reader.ts
+│   │   │   └── worktree-manager.ts             [Later]
+│   │   └── metadata/
+│   │       ├── package-manifest.ts
+│   │       └── lockfile-reader.ts
+│   │
+│   ├── context/                                   # MANNI — context/redaction
+│   │   ├── context-builder.ts
+│   │   ├── relevance-ranking.ts
+│   │   ├── token-budget.ts
+│   │   ├── redaction/
+│   │   │   ├── secret-patterns.ts
+│   │   │   ├── redact-secrets.ts
+│   │   │   └── sensitive-file-rules.ts
+│   │   └── retrieval/                           [Later]
+│   │       ├── chunker.ts
+│   │       ├── embeddings.port.ts
+│   │       ├── vector-index.ts
+│   │       └── hybrid-search.ts
+│   │
+│   ├── analysis/                                  # TEAM LEAD — AI analysis
+│   │   ├── analysis-orchestrator.ts
+│   │   ├── analysis-request.ts
+│   │   ├── finding-normalizer.ts
+│   │   ├── evidence-validator.ts
+│   │   ├── agents/
+│   │   │   ├── agent.contract.ts
+│   │   │   ├── bug-investigation.agent.ts
+│   │   │   ├── security-review.agent.ts
+│   │   │   ├── performance-review.agent.ts
+│   │   │   └── regression-risk.agent.ts          [Later]
+│   │   ├── rules/
+│   │   │   ├── rule.contract.ts
+│   │   │   ├── suspicious-patterns.ts
+│   │   │   └── rule-runner.ts
+│   │   └── confidence/
+│   │       ├── confidence-score.ts               [Later]
+│   │       └── confidence-calibration.ts          [Later]
+│   │
+│   ├── providers/                                 # TEAM LEAD — provider adapters
+│   │   ├── provider.contract.ts
+│   │   ├── provider-registry.ts
+│   │   ├── provider-errors.ts
+│   │   ├── schemas/
+│   │   │   ├── analysis-response.schema.ts
+│   │   │   └── repair-response.schema.ts
+│   │   └── adapters/
+│   │       ├── gemini.adapter.ts
+│   │       ├── openai-compatible.adapter.ts      [Optional]
+│   │       └── mock.adapter.ts
+│   │
+│   ├── repair/ # OWNER: PRATHAM
+│   │   ├── repair-orchestrator.ts
+│   │   ├── proposal-builder.ts
+│   │   ├── patch-parser.ts
+│   │   ├── patch-validator.ts
+│   │   ├── diff-preview.ts
+│   │   ├── approval-gate.ts
+│   │   └── apply-patch.ts
+│   │
+│   ├── verification/ # OWNER: PRATHAM
+│   │   ├── verification-orchestrator.ts
+│   │   ├── command-policy.ts
+│   │   ├── check-discovery.ts
+│   │   ├── process-runner.ts
+│   │   ├── timeout.ts
+│   │   ├── result-classifier.ts
+│   │   └── sandbox/                              [Later]
+│   │       ├── docker-runner.ts
+│   │       ├── sandbox-policy.ts
+│   │       └── resource-limits.ts
+│   │
+│   ├── report/                                    # AYAN — report formats
+│   │   ├── report-builder.ts
+│   │   ├── markdown-report.ts
+│   │   ├── json-report.ts
+│   │   └── evidence-timeline.ts                  [Later]
+│   │
+│   ├── config/                                    # AYAN — configuration
+│   │   ├── config.schema.ts
+│   │   ├── load-config.ts
+│   │   ├── default-config.ts
+│   │   ├── validate-config.ts
+│   │   └── paths.ts
+│   │
+│   ├── storage/                                   # AYAN — local persistence
+│   │   ├── local-state-store.ts
+│   │   ├── run-store.ts
+│   │   ├── finding-store.ts
+│   │   └── migrations/                           [Only if needed]
+│   │
+│   ├── memory/                                    # [Later]                                   [Later]
+│   │   ├── memory.contract.ts
+│   │   ├── repair-memory.ts
+│   │   ├── success-failure-feedback.ts
+│   │   ├── repository-knowledge-graph.ts
+│   │   ├── cross-repo-search.ts
+│   │   └── immunization-recommendations.ts
+│   │
+│   ├── integrations/                              # [Later]
+│   │   └── github/                               [Later]
+│   │       ├── github-client.ts
+│   │       ├── diff-fetcher.ts
+│   │       ├── pull-request-builder.ts
+│   │       ├── pull-request-publisher.ts
+│   │       └── permission-check.ts
+│   │
+│   ├── telemetry/                                 # [Later]                                [Later]
+│   │   ├── event.contract.ts
+│   │   ├── telemetry-client.ts
+│   │   └── rollback-policy.ts
+│   │
+│   └── utils/                                     # TEAM LEAD — shared utilities
+│       ├── logger.ts
+│       ├── clock.ts
+│       ├── safe-path.ts
+│       └── async.ts
+│
+├── tests/ # Each owner tests their own module
+│   ├── unit/                                     # Each module owner writes tests
+│   │   ├── domain/
+│   │   ├── context/
+│   │   ├── repository/
+│   │   ├── analysis/
+│   │   ├── repair/
+│   │   └── verification/
+│   ├── integration/                               # Shared integration ownership
+│   │   ├── scan-pipeline.test.ts
+│   │   ├── provider-contract.test.ts
+│   │   ├── repair-verification.test.ts
+│   │   └── config-loading.test.ts
+│   ├── e2e/                                      # TEAM LEAD coordinates
+│   │   ├── init-command.test.ts
+│   │   ├── scan-command.test.ts
+│   │   └── review-command.test.ts
+│   ├── security/                                  # Relevant module owners + review
+│   │   ├── secret-redaction.test.ts
+│   │   ├── path-traversal.test.ts
+│   │   └── unsafe-command-blocking.test.ts
+│   ├── fixtures/
+│   │   ├── clean-repo/
+│   │   ├── buggy-repo/
+│   │   ├── vulnerable-repo/
+│   │   ├── monorepo/
+│   │   └── cross-repo/
+│   │       ├── repo-a-fixed/
+│   │       └── repo-b-similar-bug/
+│   └── helpers/
+│       ├── make-temp-repo.ts
+│       ├── fake-provider.ts
+│       └── assertions.ts
+│
+├── examples/ # OWNER: AYAN
+│   ├── repoguard.config.example.json
+│   ├── sample-findings.json
+│   └── sample-repair-report.md
+│
+├── benchmarks/                                  [Later]
+│   ├── datasets/
+│   ├── evaluation-cases/
+│   └── evaluate-findings.ts
+│
+└── .repoguard/                                  # generated per user repo; normally gitignored
+    ├── config.json                              # created by `repoguard init`
+    ├── state/
+    ├── reports/
+    └── cache/</div>
+<div class="note">The <code>.repoguard/</code> folder is generated inside a scanned user's repository at runtime; it is not necessarily committed inside RepoGuard's own source repository. Do not commit real secrets, user repository contents, generated reports, or local state.</div>
+</section><section id="module-responsibilities">
+<h2>What each major area owns</h2>
+<div class="card"><h3><code>cli/</code> — user interface <span class="tag">OWNER: TEAM LEAD</span></h3><p>Parses commands and flags, prints useful output, and calls application use-cases. It should not contain scanning or AI business logic.</p></div>
+<div class="card"><h3><code>application/</code> + <code>domain/</code> — workflow and contracts <span class="tag">OWNER: TEAM LEAD</span></h3><p>Use-cases coordinate the steps. Domain types define stable contracts for findings, evidence, repair proposals, and verification results so team members can work without inventing incompatible shapes.</p></div>
+<div class="card"><h3><code>repository/</code> + <code>context/</code> — understand the codebase safely <span class="tag">OWNER: MANNI</span></h3><p>Discover the repository, honor ignore rules, read bounded source files, inspect Git state, rank relevant context, and redact secrets before anything is sent to an AI provider.</p></div>
+<div class="card"><h3><code>analysis/</code> + <code>providers/</code> — investigate and normalize AI output <span class="tag">OWNER: TEAM LEAD</span></h3><p>Agents investigate bugs/security/performance. Provider adapters isolate model APIs. All model output must be schema-validated and findings must reference evidence; AI claims are not automatically facts.</p></div>
+<div class="card"><h3><code>repair/</code> + <code>verification/</code> — propose, approve, verify <span class="tag">OWNER: PRATHAM</span></h3><p>Build a diff, validate paths and patch shape, show the user what would change, require approval before applying, then run only policy-approved checks with timeouts and report the actual result.</p></div>
+<div class="card"><h3><code>storage/</code> + <code>memory/</code> — state and learning <span class="tag">AYAN / LATER</span></h3><p>Storage persists local runs/findings. Later, memory can retain scoped, privacy-aware lessons from verified successful and failed repairs. Do not add a vector database before a tested retrieval need exists.</p></div>
+<div class="card"><h3><code>integrations/github/</code> + <code>telemetry/</code> — later integrations <span class="tag">LATER</span></h3><p>GitHub PR creation requires explicit authorization and permission checks. Telemetry-driven rollback/self-healing is a later, high-risk capability and must not be implied by the initial CLI.</p></div>
+</section><section id="mvp-acceptance">
+<h2>MVP: the first complete vertical slice</h2>
+<table><thead><tr><th>Step</th><th>Implement</th><th>Acceptance check</th></tr></thead><tbody>
+<tr><td>1. CLI foundation</td><td>TypeScript package, executable entry, help, config validation, logger, typed errors.</td><td><code>repoguard --help</code> works and invalid config gives a useful error.</td></tr>
+<tr><td>2. Safe repository scan</td><td>Find repo root, honor ignore rules, skip huge/binary/secret files, detect package scripts, summarize files.</td><td>Scan runs on a fixture repo without changing its files or printing secrets.</td></tr>
+<tr><td>3. Evidence-backed findings</td><td>Stable Finding schema, rule checks, mock AI provider, evidence validation, JSON/terminal report.</td><td>Every finding identifies a file and relevant location/evidence; malformed AI output is rejected.</td></tr>
+<tr><td>4. AI review</td><td>Provider contract, one real provider adapter, bounded context, response schema, graceful API errors.</td><td>Provider can be swapped/mocked; no API key is hard-coded or logged.</td></tr>
+<tr><td>5. Repair proposal</td><td>Generate patch proposal and diff preview; no automatic write by default.</td><td>User can inspect the diff; invalid paths and malformed patches are blocked.</td></tr>
+<tr><td>6. Controlled verification</td><td>Explicit check allowlist, timeout, captured exit code, truthful verification status.</td><td>Report distinguishes passed, failed, skipped, and not run.</td></tr>
+</tbody></table>
+<p class="note">A feature is complete only when implementation, tests, failure handling, documentation, and CLI behavior agree. A command stub or folder name does not count as a working capability.</p>
+</section>
+
+<section id="features"><div class="head"><span class="num">05</span><h2>All 15 planned capabilities</h2></div><p>The complete vision stays documented, but every item is not a day-one task. Start with repository analysis, structured findings, repair proposals and verification.</p><div class="grid">
+<article class="card"><div class="kicker">01 · MVP</div><h3>Repository / GitHub analysis</h3><p>Inspect local repositories first; later add authorized GitHub ingestion pinned to a commit SHA. Exclude irrelevant and sensitive files.</p></article>
+<article class="card"><div class="kicker">02 · MVP</div><h3>Security, bug and performance investigation</h3><p>Run focused analysis passes. These may be functions/prompts initially, not separate autonomous services.</p></article>
+<article class="card"><div class="kicker">03 · Next</div><h3>RAG and persistent AI memory</h3><p>Retrieve relevant code and verified outcomes. Start with simple searchable records; add vector search only if measured retrieval quality needs it.</p></article>
+<article class="card"><div class="kicker">04 · MVP</div><h3>AI repair engineer</h3><p>Generate a targeted, reviewable diff tied to a finding, with a rationale and changed-path list.</p></article>
+<article class="card"><div class="kicker">05 · MVP safety</div><h3>Sandbox verification</h3><p>Run approved checks in a disposable workspace with time/resource/output limits and captured results.</p></article>
+<article class="card"><div class="kicker">06 · Next</div><h3>Learn from successful and failed fixes</h3><p>Store exact patch identity, test evidence and failure reasons so future attempts can reuse real outcomes.</p></article>
+<article class="card"><div class="kicker">07 · Next</div><h3>Authorized GitHub pull requests</h3><p>Create a PR only with explicit permissions and approval. A PR is not proof the fix works.</p></article>
+<article class="card"><div class="kicker">08 · Next</div><h3>Root-cause timeline</h3><p>Link scan, finding, patch, test run and commit into an inspectable event history.</p></article>
+<article class="card"><div class="kicker">09 · Later</div><h3>Regression and side-effect prediction</h3><p>Suggest affected paths and regression tests; treat predictions as hypotheses until validated.</p></article>
+<article class="card"><div class="kicker">10 · Later</div><h3>Repository knowledge graph</h3><p>Represent imports/calls/ownership to trace impact. Start with a basic dependency map if sufficient.</p></article>
+<article class="card"><div class="kicker">11 · MVP report, improve later</div><h3>Evidence-based repair confidence</h3><p>Use explainable evidence coverage, patch validity and test outcomes. Model self-confidence is not proof.</p></article>
+<article class="card"><div class="kicker">12 · Safety</div><h3>Human approval and safe auto-repair</h3><p>Require review before edits or PRs. Future automation needs explicit policy, scope and recovery limits.</p></article>
+<article class="card"><div class="kicker">13 · Later</div><h3>Future bug predictor</h3><p>Estimate risk only after building a suitable dataset and measuring prediction quality.</p></article>
+<article class="card"><div class="kicker">14 · Later</div><h3>Telemetry-driven rollback / recovery</h3><p>Correlate release signals and propose recovery. A revert PR is not the same as live rollback or undoing a database migration.</p></article>
+<article class="card"><div class="kicker">15 · Later vision</div><h3>Cross-repo ripple memory and proactive immunization</h3><p>A verified fix in Repo A becomes scoped memory; search authorized Repo B/C for similar patterns and suggest a preventive test or patch. Prove it with two fixture repos before broader claims.</p></article>
+</div><div class="note"><strong>Long-term headline:</strong> “Fix once. Protect connected repositories.” This is a vision statement, not a claim that the cross-repo system already works.</div></section>
+
+<section id="roadmap"><div class="head"><span class="num">06</span><h2>Roadmap: now, next, later</h2></div><p>Build in order. Each phase begins only after the previous acceptance test works.</p><div class="timeline">
+<div class="phase"><h3>Phase 0 — Lock architecture</h3><p>Agree on scope, stack, command contract, finding schema, module boundaries, four owners and safety rules.</p><span class="tag">Exit: team sign-off</span></div>
+<div class="phase"><h3>Phase 1 — CLI skeleton and safe scan</h3><p>Help/version, project-root detection, config validation, file filtering, ignore rules, size limits and deterministic scan report. No AI needed yet.</p><span class="tag">Exit: scanner tests pass</span></div>
+<div class="phase"><h3>Phase 2 — One AI analysis pass</h3><p>Provider interface, mock provider, bounded context and schema-validated findings with code evidence. Support one language first.</p><span class="tag">Exit: fixture findings reproducible</span></div>
+<div class="phase"><h3>Phase 3 — Patch proposal and verification</h3><p>Generate a diff, require approval to apply, run allowlisted checks in a controlled temporary workspace, and report actual results.</p><span class="tag">Exit: known-bug fixture validates the flow</span></div>
+<div class="phase"><h3>Phase 4 — Evidence records and retrieval</h3><p>Store scan/finding/patch/test outcomes; learn from failures. Add RAG/vector search only after retrieval evaluation.</p><span class="tag">Exit: evidence reusable</span></div>
+<div class="phase"><h3>Phase 5 — GitHub integration</h3><p>Authorized GitHub App, least privilege, pinned commit SHA, webhook validation and human-approved PRs.</p><span class="tag">Exit: PR includes tested-patch evidence</span></div>
+<div class="phase"><h3>Phase 6 — Cross-repo prevention</h3><p>Use a verified-fix memory to find similar patterns in two authorized fixture repositories and suggest a preventive test.</p><span class="tag">Exit: repeatable two-repo demo</span></div>
+<div class="phase"><h3>Phase 7 — Telemetry and prediction research</h3><p>Investigate regression estimates, production signals and recovery simulations only after the core workflow is reliable.</p><span class="tag">Future work</span></div>
+</div></section>
+
+<section id="team"><div class="head"><span class="num">07</span><h2>Four-person task division</h2></div>
+<p>The full repository structure stays intact. This ownership split is updated so <strong>CLI belongs to the Team Lead</strong>, not Ayan. Every module has a primary owner; shared interfaces and integration are reviewed together.</p>
+<div class="grid">
+<article class="card"><div class="kicker">Owner 1 · Repair and verification</div><h3>Pratham — Repair &amp; Verification Engineer</h3>
+<p><strong>Own:</strong> safe repair proposals, patch validation, approval gate and controlled checks.</p>
+<p><strong>Primary paths:</strong> <code>src/repair/</code>, <code>src/verification/</code>, <code>tests/unit/repair/</code>, <code>tests/unit/verification/</code>, repair/verification integration tests and unsafe-command security tests.</p>
+<p><strong>Done when:</strong> diffs are reviewable, unsafe paths are rejected, approval is required, and verification reports actual test results.</p></article>
+<article class="card"><div class="kicker">Owner 2 · Configuration, storage, reporting</div><h3>Ayan — Config, Storage &amp; Reporting Engineer</h3>
+<p><strong>Own:</strong> configuration schema/loading/validation, local run and finding persistence, report building and example files. <strong>CLI is not assigned to Ayan.</strong></p>
+<p><strong>Primary paths:</strong> <code>src/config/</code>, <code>src/storage/</code>, <code>src/report/</code>, <code>examples/</code>, config/storage/report unit tests and <code>tests/integration/config-loading.test.ts</code>.</p>
+<p><strong>Done when:</strong> invalid config fails clearly, state can be stored/retrieved, reports match shared types, and examples reflect supported behavior.</p></article>
+<article class="card"><div class="kicker">Owner 3 · Repository scanner and context</div><h3>Manni — Repository Intelligence Engineer</h3>
+<p><strong>Own:</strong> repository discovery, safe file walking/reading, ignore rules, metadata, context selection and secret redaction.</p>
+<p><strong>Primary paths:</strong> <code>src/repository/</code>, <code>src/context/</code>, <code>tests/unit/repository/</code>, <code>tests/unit/context/</code>, scanner fixtures and secret-redaction/path-traversal tests.</p>
+<p><strong>Done when:</strong> scanning is deterministic, excluded/oversized files are handled, paths stay inside the target repository, and secrets are removed before provider calls.</p></article>
+<article class="card"><div class="kicker">Owner 4 · Team Lead</div><h3>You — CLI, Domain, AI Analysis &amp; Integration</h3>
+<p><strong>Own:</strong> CLI interface and command routing, shared domain contracts, AI analysis quality, provider adapters and cross-module integration.</p>
+<p><strong>Primary paths:</strong> <code>src/cli/</code>, <code>src/domain/</code>, <code>src/analysis/</code>, <code>src/providers/</code>, <code>src/application/</code>, <code>src/utils/</code>, domain/analysis tests and provider/scan-pipeline integration tests.</p>
+<p><strong>Done when:</strong> commands call application use-cases, types are agreed, AI output is validated against evidence, provider failures are handled, and the end-to-end workflow is tested.</p></article>
+</div>
+<div class="note"><strong>Cross-review:</strong> Team Lead reviews CLI/contracts/provider boundaries; Manni reviews repository/context; Ayan reviews config/storage/reporting; Pratham reviews repair/verification. Everyone reviews security-sensitive changes. Shared contracts must be agreed before parallel implementation.</div>
+<div class="note warn"><strong>Shared / unassigned:</strong> root configuration, docs, CI workflows and scripts are coordinated by the Team Lead and reviewed by the team. Do not start [Later] modules until the MVP works.</div>
+</section>
+
+<section id="contracts"><div class="head"><span class="num">08</span><h2>Shared contracts before parallel coding</h2></div><div class="tablewrap"><table><thead><tr><th>Contract</th><th>Minimum fields</th><th>Why</th></tr></thead><tbody><tr><td>Scan request</td><td>project root, supported mode, exclusions, limits</td><td>CLI and scanner agree on scan scope.</td></tr><tr><td>Finding</td><td>id, category, severity, title, explanation, path, line range if available, evidence, confidence/uncertainty</td><td>Analysis, reports and repair refer to the same issue.</td></tr><tr><td>Repair proposal</td><td>id, finding id, diff, changed paths, rationale, status</td><td>Review and tests use the exact same candidate patch.</td></tr><tr><td>Verification result</td><td>repair id, checks attempted, exit codes, duration, output summary, status, cleanup result</td><td>Prevents false “fixed” claims.</td></tr><tr><td>Provider result</td><td>validated payload or typed error; safe model metadata</td><td>Supports mocks, provider changes and error handling.</td></tr></tbody></table></div><p>Validate external/model output against a schema. Model output must never directly set security policy, write files, or execute unrestricted commands.</p></section>
+
+<section id="ai"><div class="head"><span class="num">09</span><h2>How Gemini / AI coding assistant should work</h2></div><p>README explains the product and setup. <code>AGENTS.md</code> and <code>GEMINI.md</code> should define coding constraints and review process. A tool follows those files only when it supports or is explicitly given them; never assume every AI automatically reads every instruction file.</p><div class="flow"><div class="node"><b>1. Read task</b><small>Task + instructions</small></div><span class="arrow">→</span><div class="node"><b>2. Inspect repo</b><small>Relevant code</small></div><span class="arrow">→</span><div class="node"><b>3. Plan files</b><small>List changes first</small></div><span class="arrow">→</span><div class="node"><b>4. Implement</b><small>Small change</small></div><span class="arrow">→</span><div class="node"><b>5. Test/review</b><small>Evidence</small></div><span class="arrow">→</span><div class="node"><b>6. Update docs</b><small>Truthful status</small></div></div><ol><li>Read the task, instructions, current code and shared contracts before editing.</li><li>State the goal, why it matters, dependencies, exact files, acceptance criteria and tests.</li><li>If an architecture decision is missing, ask rather than inventing a conflicting design.</li><li>Make the smallest coherent change. Do not generate all future features in one prompt.</li><li>Run relevant tests and report exact commands and real results; explain any test that could not run.</li><li>Update docs/status only to match verified reality. File generation alone does not mean a feature is done.</li><li>Ask for human review before merge, risky edits or external actions.</li></ol><div class="card"><div class="kicker">Reusable task prompt</div><pre>You are working ONLY in the existing RepoGuard repository.
+Read README.md, AGENTS.md, GEMINI.md, docs/ARCHITECTURE.md,
+docs/TEAM_TASKS.md and the assigned task before editing.
+
+Before changes, report:
+- goal and why it matters
+- dependencies and shared contracts
+- exact files you propose to change
+- acceptance criteria and tests
+- unclear decisions and risks
+
+Do not create files until the human approves the plan.
+Do not invent features or rewrite unrelated modules.
+Never expose secrets or auto-run model-generated shell commands.
+Make the smallest change that meets the task.
+Run relevant checks and report exact commands and real results.
+If a check cannot run, explain why.
+Update documentation only to match verified implementation.
+Wait for human review before merging or risky actions.</pre></div></section>
+
+<section id="safety"><div class="head"><span class="num">10</span><h2>Security and trust rules</h2></div><div class="grid"><article class="card"><h3>Repository content is untrusted</h3><p>Source files can contain prompt injection, secrets, huge generated blobs or hostile scripts. Do not treat repository text as trusted instructions.</p></article><article class="card"><h3>Credentials stay private</h3><p>Use environment variables/secure storage. Never commit `.env`, tokens or keys; never print credentials in logs or config output.</p></article><article class="card"><h3>Execution has boundaries</h3><p>Use command allowlists, timeouts, resource limits, restricted filesystem access and disposable workspaces. Never mount a host Docker socket into an untrusted sandbox.</p></article><article class="card"><h3>External actions require approval</h3><p>PR creation and production recovery need scoped permissions and approval. A revert PR is not the same as live rollback or undoing a database migration.</p></article></div></section>
+
+<section id="demo"><div class="head"><span class="num">11</span><h2>Demo story and acceptance checklist</h2></div><p>Prove one real behavior rather than showing a large folder tree or an AI chat mock-up.</p><div class="card"><div class="kicker">Demo sequence</div><ol><li>Open a tiny fixture repository containing a known bug.</li><li>Run the implemented RepoGuard CLI command.</li><li>Show finding, evidence, file path and line range.</li><li>Generate a patch proposal and inspect the diff.</li><li>Show the known check failing before the fix, where applicable.</li><li>Run verification against the exact proposed patch in a controlled workspace.</li><li>Show real output, exit code and final status.</li><li>Prove the original working tree was not silently changed.</li></ol></div><ul class="checklist"><li><input type="checkbox"> Help and clean setup work in the agreed environment.</li><li><input type="checkbox"> Empty repo and invalid config give understandable results.</li><li><input type="checkbox"> Secret and ignored files are excluded.</li><li><input type="checkbox"> Malformed model output and provider errors fail safely.</li><li><input type="checkbox"> Patch is reviewable and linked to a finding ID.</li><li><input type="checkbox"> Verification status matches the real result.</li><li><input type="checkbox"> README documents only commands that currently work.</li><li><input type="checkbox"> Each member can explain their module and interface.</li></ul><p class="small">Checklist state is local to this browser and is not saved to GitHub.</p></section>
+
+<section id="later"><div class="head"><span class="num">12</span><h2>Later means later</h2></div><div class="grid3"><article class="card"><h3>After MVP</h3><p>Persistent memory, retrieval evaluation, learning from failed repairs, richer timeline and GitHub PR flow.</p></article><article class="card"><h3>Research phase</h3><p>Knowledge graph, regression/side-effect estimates, future bug prediction and cross-repository immunization.</p></article><article class="card"><h3>High-risk future work</h3><p>Production telemetry, self-healing rollback and autonomous recovery—only with simulations, permission gates and operational safeguards.</p></article></div><div class="note warn"><strong>Scope rule:</strong> ship one reliable scan → finding → proposed patch → verified result workflow before advanced agents, vector memory, telemetry or cross-repository automation.</div></section>
+<footer><strong>RepoGuard · Master Project Guide</strong><p>For the four-person team: Pratham, you, Ayan and Manni. Architecture, CLI commands, folders and features remain proposed until implemented and tested. Update the guide as decisions change; never claim unverified capabilities.</p></footer>
+</main></div>
+<script>
+const body=document.body,btn=document.getElementById('theme');
+btn.addEventListener('click',()=>{const next=body.getAttribute('data-theme')==='dark'?'light':'dark';body.setAttribute('data-theme',next);btn.textContent=next==='dark'?'☼ Light mode':'☾ Dark mode';});
+</script>
+</body></html>

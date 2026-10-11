@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "my-service",
+    "exclude": [
+      "node_modules/**",
+      "dist/**",
+      ".git/**",
+      "coverage/**"
+    ]
+  },
+  "scan": {
+    "maxFileSize": 1048576,
+    "redactSecrets": true
+  },
+  "verification": {
+    "timeoutMs": 30000,
+    "allowedCommands": [
+      "npm test",
+      "npm run lint"
+    ]
+  }
+}

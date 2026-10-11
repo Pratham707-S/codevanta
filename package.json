@@ -1,0 +1,42 @@
+{
+  "name": "repoguard",
+  "version": "0.1.0",
+  "description": "CLI-first AI software reliability tool providing safe, evidence-backed repository inspection, AI-assisted investigation, reviewable repairs, and controlled verification.",
+  "type": "module",
+  "bin": {
+    "repoguard": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist coverage"
+  },
+  "keywords": [
+    "code-analysis",
+    "code-review",
+    "security",
+    "verification",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "eslint": "^9.21.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.7"
+  }
+}

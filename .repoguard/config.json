@@ -1,0 +1,26 @@
+{
+  "$schema": "../src/config/config.schema.json",
+  "version": "1.0.0",
+  "project": {
+    "name": "repoguard",
+    "exclude": [
+      "node_modules/**",
+      "dist/**",
+      ".git/**",
+      "coverage/**",
+      "**/*.min.js"
+    ]
+  },
+  "scan": {
+    "maxFileSize": 1048576,
+    "redactSecrets": true
+  },
+  "verification": {
+    "timeoutMs": 30000,
+    "allowedCommands": [
+      "npm test",
+      "npm run lint",
+      "npm run typecheck"
+    ]
+  }
+}

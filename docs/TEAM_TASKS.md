@@ -8,12 +8,12 @@ To ensure smooth parallel development, clean module boundaries, and no merge col
 
 | Member | Focus Area | Owned Code Directory | Primary Responsibilities |
 | :--- | :--- | :--- | :--- |
-| **Team Lead** | Domain, Application, AI & Redaction | `src/domain/`<br>`src/application/`<br>`src/infrastructure/ai/`<br>`src/infrastructure/redaction/` | Core Zod schemas (`Finding`, `RepairProposal`), application orchestration use cases, `AIProvider` contract, `MockAIProvider`, secret redaction filters, integration coordination. |
-| **Ayan** | CLI, Configuration & Output | `src/cli/`<br>`src/config/`<br>`src/output/` | CLI command routing, options parsing (`commander`), config loader, terminal styling, JSON output formatter, UNIX exit codes. |
-| **Manni** | Scanner & Discovery | `src/infrastructure/scanner/` | Repository root detection, `.gitignore` parsing, binary/sensitive file exclusion, file size limits (>1MB), project metadata extraction. |
-| **Pratham** | Repair Workflow & Verification | `src/infrastructure/repair/`<br>`src/infrastructure/verifier/` | Unified diff patch generation, path traversal validation, human approval prompt gate, controlled verification runner with timeouts. |
+| **Team Lead** | CLI, Domain, AI Analysis & Application | `src/cli/`<br>`src/application/`<br>`src/domain/`<br>`src/analysis/`<br>`src/providers/`<br>`src/utils/` | CLI routing & options (`commander`), shared Zod schemas & contracts, application orchestration use cases, AI provider adapters (`Gemini`), analysis agents & rule runner, shared utilities. |
+| **Pratham** | Repair & Verification | `src/repair/`<br>`src/verification/`<br>`src/domain/repair/`<br>`src/domain/verification/` | Unified diff patch generation & parsing, path traversal validation, interactive human approval prompt gate, controlled verification runner with timeouts, Docker sandbox adapter. |
+| **Ayan** | Configuration, Storage & Reporting | `src/config/`<br>`src/storage/`<br>`src/report/`<br>`examples/`<br>`.repoguard/` | Configuration schema (`Zod`) & loading, local run and finding state persistence, Markdown & JSON report formatting, configuration examples. *(CLI is owned by Team Lead).* |
+| **Manni** | Repository Scanning & Context | `src/repository/`<br>`src/context/`<br>`src/domain/repository/` | Repository root detection, safe file traversal (`.gitignore`, limits, binary skips), Git status & diff inspection, bounded context builder, regex & entropy secret redaction. |
 
-*(Note: `src/index.ts` is the composition root, jointly coordinated between the Team Lead and Ayan).*
+*(Note: `src/index.ts` is the composition root, coordinated by the Team Lead).*
 
 ---
 

@@ -50,3 +50,11 @@ Thumbs.db
 *.diff
 *.orig
 *.rej
+
+# RepoGuard runtime artifacts
+.repoguard/state/*
+!.repoguard/state/.gitkeep
+.repoguard/reports/*
+!.repoguard/reports/.gitkeep
+.repoguard/cache/*
+!.repoguard/cache/.gitkeep

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "FINDING-001",
+    "category": "security",
+    "severity": "HIGH",
+    "title": "Hardcoded secret pattern detected in configuration file",
+    "path": "src/config/api.ts",
+    "lineRange": { "start": 12, "end": 14 },
+    "explanation": "Potential private API token literal discovered in source repository.",
+    "evidence": "const apiKey = 'sk-sample-secret-placeholder';",
+    "confidence": 0.95,
+    "status": "OPEN"
+  }
+]
