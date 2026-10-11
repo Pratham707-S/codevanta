@@ -1,16 +1,23 @@
 /**
  * RepoGuard ESLint Configuration
  * Owner: Shared (Team Lead coordinates)
- * Purpose: ESLint flat configuration
- *
- * @todo Configure flat linting rules for TypeScript and test files in planned tooling milestone.
+ * Purpose: ESLint flat configuration for TypeScript and JavaScript
  */
-export default [
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
   {
     ignores: ['dist/**', 'node_modules/**', 'coverage/**', '.repoguard/**'],
   },
+  ...tseslint.configs.recommended,
   {
     files: ['**/*.ts', '**/*.js'],
-    rules: {},
-  },
-];
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  }
+);
