@@ -1,51 +1,45 @@
-# RepoGuard 🛡️
+# RepoGuard
 
 > **Fix with evidence. Verify before trust.**
-> *A CLI-first AI software reliability assistant engineered to inspect repositories safely, discover vulnerabilities with deterministic code evidence, propose reviewable patches, and verify fixes inside controlled sandboxes.*
+> A CLI-first software reliability assistant that inspects repositories safely, discovers vulnerabilities with deterministic code evidence, proposes reviewable patches, and verifies fixes inside controlled sandboxes.
 
-<div align="center">
-
-[![Hackathon](https://img.shields.io/badge/🏆_Hackathon-CodeNexus_India_2026-8A2BE2?style=for-the-badge)](https://unstop.com/hackathons/codenexus-india-2026-national-hackathon-wecodecoders-1764747)
-[![Platform](https://img.shields.io/badge/Platform-Unstop-0066FF?style=for-the-badge)](https://unstop.com/hackathons/codenexus-india-2026-national-hackathon-wecodecoders-1764747)
-[![Track](https://img.shields.io/badge/Theme-AI_Developer_Reliability_%26_Security-00C853?style=for-the-badge)]()
-
+[![Hackathon](https://img.shields.io/badge/Hackathon-CodeNexus_India_2026-blueviolet?style=flat-square)](https://unstop.com/hackathons/codenexus-india-2026-national-hackathon-wecodecoders-1764747)
+[![Platform](https://img.shields.io/badge/Platform-Unstop-blue?style=flat-square)](https://unstop.com/hackathons/codenexus-india-2026-national-hackathon-wecodecoders-1764747)
+[![Track](https://img.shields.io/badge/Theme-AI_Developer_Reliability_%26_Security-success?style=flat-square)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-22.x-green?style=flat-square&logo=node.js)](https://nodejs.org/)
-[![Architecture](https://img.shields.io/badge/Architecture-Modular%20Monolith-orange?style=flat-square)](#-architecture--module-boundaries)
+[![Architecture](https://img.shields.io/badge/Architecture-Modular%20Monolith-orange?style=flat-square)](#architecture--directory-structure)
 [![Test Suite](https://img.shields.io/badge/Tests-Vitest-yellow?style=flat-square&logo=vitest)](https://vitest.dev/)
-[![Security](https://img.shields.io/badge/Security-Redaction%20%26%20Sandbox-red?style=flat-square)](#-security--safety-guardrails)
+[![Security](https://img.shields.io/badge/Security-Redaction%20%26%20Sandbox-red?style=flat-square)](#security--safety-guardrails)
 [![License](https://img.shields.io/badge/License-Apache_2.0-lightgrey.svg?style=flat-square)](LICENSE)
 
-</div>
+---
+
+**Project Context:** Built for the **CodeNexus India 2026 National Hackathon (WeCodeCoders)** on [Unstop](https://unstop.com/hackathons/codenexus-india-2026-national-hackathon-wecodecoders-1764747).
+**Team:** Pratham, Team Lead, Ayan, Manni.
 
 ---
 
-> 🚀 **Built for CodeNexus India 2026 National Hackathon (WeCodeCoders)**<br>
-> Hosted on [Unstop](https://unstop.com/hackathons/codenexus-india-2026-national-hackathon-wecodecoders-1764747).<br>
-> **Team RepoGuard:** Pratham, Team Lead, Ayan, Manni.
+## Problem & Approach
+
+### The Problem
+Most AI coding assistants propose plausible-looking code suggestions without any empirical proof that the patch actually works:
+1. **Unverified Patches Break Code:** Large language models routinely hallucinate fixes that pass casual visual review but fail edge cases or introduce regression bugs.
+2. **Untrusted Command Execution:** Directly auto-executing model-generated commands on developer machines creates severe security risks (accidental deletions, untrusted network access, credential exposure).
+3. **Fragmented Evidence:** Developers are forced to manually correlate compiler outputs, test logs, AI suggestions, and git diffs across multiple tools.
+
+### The RepoGuard Approach
+RepoGuard turns code analysis, patch synthesis, and sandboxed test execution into a continuous, verifiable workflow directly in the terminal:
+- **Discovers** codebase structure using safe, read-only file traversal while filtering out secrets and binary files.
+- **Investigates** bugs, security vulnerabilities, and performance bottlenecks backed by concrete line-level evidence.
+- **Synthesizes** targeted unified diff patches without modifying the working tree.
+- **Requires** explicit developer approval at an interactive confirmation gate before touching disk.
+- **Verifies** candidate patches in an isolated execution sandbox using allowlisted checks with bounded timeouts.
+- **Reports** truthful, empirical outcomes (`PASSED`, `FAILED`, `TIMED_OUT`) with zero fabricated assurances.
 
 ---
 
-## 💡 The Hackathon Pitch
-
-### The Core Problem
-Modern developers are flooded with AI coding tools that generate plausible-looking patches. However:
-1. **An AI suggestion is not proof:** Models routinely hallucinate fixes that pass visual review but fail critical edge cases or break dependent modules.
-2. **Untrusted execution risks:** Running model-generated commands directly on host machines exposes teams to malicious shell commands, destructive deletions, and secret leakage.
-3. **Fragmented evidence:** Developers waste hours jumping between static analysis logs, test runner outputs, AI chat windows, and git diffs.
-
-### Our Solution: RepoGuard
-RepoGuard turns code analysis, automated patch synthesis, and sandboxed test execution into a **continuous, evidence-backed workflow directly in the terminal**:
-- **Discovers** repository structure using safe, read-only traversal while filtering secrets and binary files.
-- **Investigates** bugs, security flaws, and performance bottlenecks backed by concrete line-level evidence.
-- **Synthesizes** exact unified diff patches without modifying working trees.
-- **Enforces** a mandatory interactive developer approval gate.
-- **Verifies** the patch in an isolated execution sandbox using allowlisted checks with strict timeouts.
-- **Reports** truthful, empirical outcomes (`PASSED`, `FAILED`, `TIMED_OUT`) with zero hallucinated claims.
-
----
-
-## ⚡ Interactive Demo Pipeline
+## Architecture Pipeline
 
 ```mermaid
 flowchart LR
@@ -77,32 +71,32 @@ flowchart LR
 
 ---
 
-## 🎯 2-Minute Judge Evaluation Walkthrough
+## Quickstart & Evaluation Walkthrough
 
-For hackathon evaluators testing RepoGuard:
+For hackathon evaluators testing the CLI workflow:
 
 ```bash
-# 1. Inspect repository health & safe file inventory
+# 1. Run safe repository scan and inventory supported files
 npx repoguard scan
 
-# 2. View high-signal findings backed by verified line-level code snippets
+# 2. Inspect high-signal findings backed by verified line-level code evidence
 npx repoguard review
 
-# 3. Generate a targeted, non-destructive unified diff proposal
+# 3. Generate a targeted unified diff patch tied to a specific finding
 npx repoguard fix FINDING-001
 
-# 4. Run policy-allowlisted tests in a temporary verification sandbox
+# 4. Execute allowlisted checks inside a temporary verification sandbox
 npx repoguard test REPAIR-001
 
-# 5. Output a structured, evidence-backed Markdown/JSON audit report
+# 5. Output a structured, evidence-backed audit report
 npx repoguard status SCAN-001
 ```
 
 ---
 
-## 💎 The 15 Planned Capabilities
+## 15 Core Capabilities & Roadmap
 
-RepoGuard is engineered around 15 capabilities, prioritizing a bulletproof local CLI MVP for the hackathon before scaling to cross-repository memory:
+The architecture is designed around 15 capabilities, prioritizing a dependable local CLI vertical slice for the hackathon before scaling to cross-repository intelligence:
 
 | # | Capability | Phase | Description |
 | :-: | :--- | :---: | :--- |
@@ -127,22 +121,22 @@ RepoGuard is engineered around 15 capabilities, prioritizing a bulletproof local
 
 ---
 
-## 👥 Hackathon Team & Module Ownership
+## Team & Module Ownership
 
-The project enforces strict modular monolith boundaries to ensure zero merge conflicts during parallel development:
+The project enforces strict modular monolith boundaries to ensure clean parallel development:
 
 | Team Member | Role | Owned Modules | Core Responsibilities |
 | :--- | :--- | :--- | :--- |
 | **Team Lead** | CLI, Application, Domain & AI Analysis | `src/cli/`<br>`src/application/`<br>`src/domain/`<br>`src/analysis/`<br>`src/providers/`<br>`src/utils/` | CLI routing & terminal options (`commander`), shared domain contracts (`Zod`), use-case orchestration, Google Gemini model adapter, static rule runner, and system integration. |
 | **Pratham** | Repair & Sandbox Verification | `src/repair/`<br>`src/verification/`<br>`src/domain/repair/`<br>`src/domain/verification/` | Unified diff generation & parsing, path traversal security, interactive developer approval gate, allowlisted check runner with timeouts, and Docker sandbox adapter. |
-| **Ayan** | Configuration, Storage & Reporting | `src/config/`<br>`src/storage/`<br>`src/report/`<br>`examples/`<br>`.repoguard/` | Configuration schema & loading (`repoguard.config.json`), local state & run persistence (`.repoguard/state`), Markdown & JSON audit report builders. *(CLI is owned by Team Lead).* |
+| **Ayan** | Configuration, Storage & Reporting | `src/config/`<br>`src/storage/`<br>`src/report/`<br>`examples/`<br>`.repoguard/` | Configuration schema & loading (`repoguard.config.json`), local state & run persistence (`.repoguard/state`), Markdown & JSON audit report builders. *(Note: CLI is owned by Team Lead).* |
 | **Manni** | Repository Scanning & Context Intelligence | `src/repository/`<br>`src/context/`<br>`src/domain/repository/` | Repository root detection, safe file traversal (`.gitignore`, binary skips, >1MB limit), Git state reader, bounded context builder, and regex/entropy secret redaction. |
 
 ---
 
-## 🔒 Security & Safety Guardrails
+## Security & Safety Guardrails
 
-RepoGuard treats all target repositories as **untrusted input**:
+RepoGuard treats target codebases as untrusted input:
 
 1. **Zero Secret Leakage:** High-entropy tokens, passwords, private keys (`.pem`, `.key`), and `.env` files are automatically redacted into `[REDACTED_SECRET]` before any payload reaches an AI model provider.
 2. **Path Traversal Guards:** All patch file targets are sanitized with [`src/utils/safe-path.ts`](src/utils/safe-path.ts). Relative path escapes (`../../etc/passwd`) and absolute target locations outside the project boundary are strictly blocked.
@@ -152,7 +146,7 @@ RepoGuard treats all target repositories as **untrusted input**:
 
 ---
 
-## 🏛️ Architecture & Directory Structure
+## Architecture & Directory Structure
 
 ```
 repoguard/
@@ -229,10 +223,10 @@ repoguard/
 
 ---
 
-## 🚀 Getting Started & Local Setup
+## Getting Started
 
 ### Prerequisites
-- **Node.js:** `>= 22.0.0` (managed via [`.nvmrc`](.nvmrc))
+- **Node.js:** `>= 22.0.0` (see [`.nvmrc`](.nvmrc))
 - **npm:** `>= 10.0.0`
 - **Git:** `>= 2.40.0`
 
@@ -258,7 +252,7 @@ npm run build       # Build dist/ bundle
 
 ---
 
-## 📚 Complete Documentation Index
+## Documentation Index
 
 - 📖 **Interactive Master Guide:** [`docs/PROJECT_GUIDE.html`](docs/PROJECT_GUIDE.html)
 - 📐 **Architecture Specification:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -275,7 +269,7 @@ npm run build       # Build dist/ bundle
 
 ---
 
-## 🏆 Hackathon Submission Info
+## Hackathon Submission Details
 
 - **Hackathon:** [CodeNexus India 2026 National Hackathon (WeCodeCoders)](https://unstop.com/hackathons/codenexus-india-2026-national-hackathon-wecodecoders-1764747)
 - **Host Platform:** Unstop
