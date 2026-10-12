@@ -4,8 +4,10 @@
  * Path: src/report/index.ts
  * Owner: Ayan
  * Purpose: Report module public exports
- *
- * @todo Implementation planned in assigned milestone.
  */
 
-export {};
+export * from './markdown-report.js';
+export * from './json-report.js';
+export * from './html-report.js';
+export * from './evidence-timeline.js';
+export * from './report-builder.js';

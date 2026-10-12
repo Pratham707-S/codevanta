@@ -4,8 +4,16 @@
  * Path: src/storage/index.ts
  * Owner: Ayan
  * Purpose: Storage module public exports
- *
- * @todo Implementation planned in assigned milestone.
  */
 
-export {};
+export {
+  StateStore,
+  type ProjectState,
+  INITIAL_STATE,
+} from './state-store.js';
+
+export {
+  RunStore,
+  type StorageFinding,
+  type ScanRunRecord,
+} from './run-store.js';
