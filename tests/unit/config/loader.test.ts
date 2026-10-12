@@ -158,4 +158,65 @@ describe('RepoGuard Configuration Loader', () => {
       }
     }
   });
+
+  it('deepMerge isolates array references without mutating base arrays', () => {
+    const base = { items: ['a', 'b'] };
+    const override = { items: ['c', 'd'] };
+    const merged = deepMerge(base, override);
+
+    expect(merged.items).toEqual(['c', 'd']);
+    merged.items.push('e');
+    // Ensure base was not mutated
+    expect(base.items).toEqual(['a', 'b']);
+  });
+
+  it('convertCliOverrides preserves existing properties and handles boolean flags', () => {
+    const overrides = convertCliOverrides({
+      timeout: 5000,
+      allowedCommands: ['npm test'],
+    }) as { verification?: { timeoutMs?: number; allowedCommands?: string[] } };
+
+    expect(overrides.verification?.timeoutMs).toBe(5000);
+    expect(overrides.verification?.allowedCommands).toEqual(['npm test']);
+  });
+
+  it('loadConfig normalizes scan.include into scan.includePatterns from file', async () => {
+    const customConfig = {
+      scan: {
+        include: ['tests/**/*.ts'],
+      },
+    };
+    const configFilePath = join(tempDir, 'include-config.json');
+    await fs.writeFile(configFilePath, JSON.stringify(customConfig), 'utf8');
+
+    const config = await loadConfig({
+      cwd: tempDir,
+      configPath: configFilePath,
+      loadEnv: false,
+    });
+
+    expect(config.scan.includePatterns).toEqual(['tests/**/*.ts']);
+  });
+
+  it('extracts comma-separated lists and case-insensitive booleans in extractEnvOverrides', () => {
+    try {
+      process.env['REPOGUARD_ALLOWED_COMMANDS'] = 'npm test, npm run lint,npm run typecheck';
+      process.env['REPOGUARD_EXCLUDE'] = 'dist/**, build/**';
+      process.env['REPOGUARD_REDACT_SECRETS'] = 'TRUE';
+
+      const env = extractEnvOverrides() as {
+        verification?: { allowedCommands?: string[] };
+        project?: { exclude?: string[] };
+        scan?: { redactSecrets?: boolean };
+      };
+      expect(env.verification?.allowedCommands).toEqual(['npm test', 'npm run lint', 'npm run typecheck']);
+      expect(env.project?.exclude).toEqual(['dist/**', 'build/**']);
+      expect(env.scan?.redactSecrets).toBe(true);
+    } finally {
+      delete process.env['REPOGUARD_ALLOWED_COMMANDS'];
+      delete process.env['REPOGUARD_EXCLUDE'];
+      delete process.env['REPOGUARD_REDACT_SECRETS'];
+    }
+  });
 });
+
