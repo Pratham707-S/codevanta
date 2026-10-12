@@ -12,8 +12,8 @@ import dotenv from 'dotenv';
 import {
   DEFAULT_CONFIG,
   RepoGuardConfig,
-  RepoGuardConfigSchema,
   ConfigValidationError,
+  validateConfig,
 } from './schema.js';
 
 export const CONFIG_CANDIDATES = [
@@ -50,7 +50,18 @@ export function deepMerge<T extends Record<string, unknown>>(
   target: T,
   source: Record<string, unknown>
 ): T {
-  const result: Record<string, unknown> = { ...target };
+  const result: Record<string, unknown> = {};
+
+  for (const [key, val] of Object.entries(target)) {
+    if (Array.isArray(val)) {
+      result[key] = [...val];
+    } else if (isPlainObject(val)) {
+      result[key] = deepMerge(val as Record<string, unknown>, {});
+    } else {
+      result[key] = val;
+    }
+  }
+
   for (const [key, val] of Object.entries(source)) {
     if (val === undefined) {
       continue;
@@ -58,6 +69,8 @@ export function deepMerge<T extends Record<string, unknown>>(
     const targetVal = result[key];
     if (isPlainObject(targetVal) && isPlainObject(val)) {
       result[key] = deepMerge(targetVal, val);
+    } else if (Array.isArray(val)) {
+      result[key] = [...val];
     } else {
       result[key] = val;
     }
@@ -153,6 +166,19 @@ export function extractEnvOverrides(): Record<string, unknown> {
     };
   }
 
+  if (process.env['REPOGUARD_EXCLUDE']) {
+    const excludes = process.env['REPOGUARD_EXCLUDE']
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (excludes.length > 0) {
+      envOverrides['project'] = {
+        ...(isPlainObject(envOverrides['project']) ? envOverrides['project'] : {}),
+        exclude: excludes,
+      };
+    }
+  }
+
   if (process.env['REPOGUARD_TIMEOUT_MS']) {
     const timeout = Number.parseInt(process.env['REPOGUARD_TIMEOUT_MS'], 10);
     if (!Number.isNaN(timeout)) {
@@ -161,6 +187,21 @@ export function extractEnvOverrides(): Record<string, unknown> {
           ? envOverrides['verification']
           : {}),
         timeoutMs: timeout,
+      };
+    }
+  }
+
+  if (process.env['REPOGUARD_ALLOWED_COMMANDS']) {
+    const commands = process.env['REPOGUARD_ALLOWED_COMMANDS']
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (commands.length > 0) {
+      envOverrides['verification'] = {
+        ...(isPlainObject(envOverrides['verification'])
+          ? envOverrides['verification']
+          : {}),
+        allowedCommands: commands,
       };
     }
   }
@@ -176,7 +217,8 @@ export function extractEnvOverrides(): Record<string, unknown> {
   }
 
   if (process.env['REPOGUARD_REDACT_SECRETS'] !== undefined) {
-    const redact = process.env['REPOGUARD_REDACT_SECRETS'] !== 'false';
+    const rawVal = process.env['REPOGUARD_REDACT_SECRETS'].trim().toLowerCase();
+    const redact = !['false', '0', 'no', 'off'].includes(rawVal);
     envOverrides['scan'] = {
       ...(isPlainObject(envOverrides['scan']) ? envOverrides['scan'] : {}),
       redactSecrets: redact,
@@ -231,7 +273,10 @@ export function convertCliOverrides(cli?: CliConfigOverrides): Record<string, un
   }
 
   if (cli.timeout !== undefined) {
-    result['verification'] = { timeoutMs: cli.timeout };
+    result['verification'] = {
+      ...(isPlainObject(result['verification']) ? result['verification'] : {}),
+      timeoutMs: cli.timeout,
+    };
   }
 
   if (cli.allowedCommands && cli.allowedCommands.length > 0) {
@@ -242,7 +287,10 @@ export function convertCliOverrides(cli?: CliConfigOverrides): Record<string, un
   }
 
   if (cli.maxFileSize !== undefined) {
-    result['scan'] = { maxFileSize: cli.maxFileSize };
+    result['scan'] = {
+      ...(isPlainObject(result['scan']) ? result['scan'] : {}),
+      maxFileSize: cli.maxFileSize,
+    };
   }
 
   if (cli.redactSecrets !== undefined) {
@@ -253,7 +301,10 @@ export function convertCliOverrides(cli?: CliConfigOverrides): Record<string, un
   }
 
   if (cli.provider) {
-    result['ai'] = { provider: cli.provider };
+    result['ai'] = {
+      ...(isPlainObject(result['ai']) ? result['ai'] : {}),
+      provider: cli.provider,
+    };
   }
 
   if (cli.model) {
@@ -313,16 +364,6 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<RepoG
     root: projectRoot,
   };
 
-  const parsed = RepoGuardConfigSchema.safeParse(merged);
-  if (!parsed.success) {
-    const formatted = parsed.error.issues
-      .map((i) => `  - [${i.path.join('.') || 'root'}]: ${i.message}`)
-      .join('\n');
-    throw new ConfigValidationError(
-      `Invalid RepoGuard configuration:\n${formatted}`,
-      parsed.error.issues
-    );
-  }
-
-  return parsed.data;
+  // Run full validation and normalization
+  return validateConfig(merged);
 }
