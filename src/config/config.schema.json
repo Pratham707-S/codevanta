@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RepoGuardConfig",
+  "description": "Configuration schema for RepoGuard software reliability and security platform",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema reference URI or path"
+    },
+    "version": {
+      "type": "string",
+      "default": "1.0.0",
+      "description": "Configuration version"
+    },
+    "project": {
+      "type": "object",
+      "description": "Target project settings",
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": "repoguard-project",
+          "description": "Human-readable project name"
+        },
+        "root": {
+          "type": "string",
+          "description": "Optional repository root path"
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns to exclude from scanning"
+        }
+      },
+      "additionalProperties": false
+    },
+    "scan": {
+      "type": "object",
+      "description": "Scanning engine settings",
+      "properties": {
+        "maxFileSize": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1048576,
+          "description": "Maximum file size in bytes to inspect (default 1MB)"
+        },
+        "redactSecrets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to redact sensitive credentials before model analysis"
+        },
+        "includePatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional glob patterns to restrict inspection to"
+        },
+        "include": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Alias for includePatterns"
+        }
+      },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "description": "Controlled verification sandbox settings",
+      "properties": {
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30000,
+          "description": "Hard subprocess execution timeout in milliseconds"
+        },
+        "allowedCommands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowlisted verification commands permitted to execute"
+        }
+      },
+      "additionalProperties": false
+    },
+    "storage": {
+      "type": "object",
+      "description": "Local workspace storage directories",
+      "properties": {
+        "stateDir": {
+          "type": "string",
+          "default": ".repoguard/state"
+        },
+        "reportsDir": {
+          "type": "string",
+          "default": ".repoguard/reports"
+        },
+        "cacheDir": {
+          "type": "string",
+          "default": ".repoguard/cache"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ai": {
+      "type": "object",
+      "description": "AI provider model settings",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["gemini", "mock"],
+          "default": "gemini"
+        },
+        "model": {
+          "type": "string",
+          "default": "gemini-2.5-pro"
+        },
+        "apiKey": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
