@@ -1,5 +1,4 @@
 {
-  "$schema": "../src/config/config.schema.json",
   "version": "1.0.0",
   "project": {
     "name": "repoguard",
