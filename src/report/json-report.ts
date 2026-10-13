@@ -22,6 +22,10 @@ export function formatJsonReport(
   record: ScanRunRecord,
   options: JsonReportOptions = {}
 ): string {
+  if (!record) {
+    return JSON.stringify({ error: 'No scan record provided' }, null, options.indent ?? 2);
+  }
+
   const pretty = options.pretty !== false;
   const indent = options.indent ?? (pretty ? 2 : 0);
   const includeEvidence = options.includeEvidence !== false;
