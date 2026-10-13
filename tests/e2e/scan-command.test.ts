@@ -138,4 +138,132 @@ describe('E2E: repoguard scan, status & report commands', () => {
     const parsedState = JSON.parse(stateContent);
     expect(parsedState.lastRunId).toBeDefined();
   });
+
+  describe('--format option behavior and validation', () => {
+    it('--format html generates only HTML report file', async () => {
+      const subDir = await fs.mkdtemp(join(tmpdir(), 'repoguard-format-html-'));
+      await fs.mkdir(join(subDir, 'src'), { recursive: true });
+      await fs.writeFile(join(subDir, 'src', 'index.ts'), 'export const a = 1;\n', 'utf8');
+
+      const program = createCliProgram('0.1.0');
+      await program.parseAsync(['node', 'repoguard', 'scan', subDir, '--format', 'html']);
+
+      const reportFiles = await fs.readdir(join(subDir, '.repoguard', 'reports'));
+      expect(reportFiles.some((f) => f.endsWith('.html'))).toBe(true);
+      expect(reportFiles.some((f) => f.endsWith('.md'))).toBe(false);
+      expect(reportFiles.some((f) => f.endsWith('.json'))).toBe(false);
+
+      await fs.rm(subDir, { recursive: true, force: true });
+    });
+
+    it('--format markdown generates only Markdown report file', async () => {
+      const subDir = await fs.mkdtemp(join(tmpdir(), 'repoguard-format-md-'));
+      await fs.mkdir(join(subDir, 'src'), { recursive: true });
+      await fs.writeFile(join(subDir, 'src', 'index.ts'), 'export const a = 1;\n', 'utf8');
+
+      const program = createCliProgram('0.1.0');
+      await program.parseAsync(['node', 'repoguard', 'scan', subDir, '--format', 'markdown']);
+
+      const reportFiles = await fs.readdir(join(subDir, '.repoguard', 'reports'));
+      expect(reportFiles.some((f) => f.endsWith('.md'))).toBe(true);
+      expect(reportFiles.some((f) => f.endsWith('.html'))).toBe(false);
+      expect(reportFiles.some((f) => f.endsWith('.json'))).toBe(false);
+
+      await fs.rm(subDir, { recursive: true, force: true });
+    });
+
+    it('--format json generates only JSON report file and emits clean JSON stdout', async () => {
+      const subDir = await fs.mkdtemp(join(tmpdir(), 'repoguard-format-json-'));
+      await fs.mkdir(join(subDir, 'src'), { recursive: true });
+      await fs.writeFile(join(subDir, 'src', 'index.ts'), 'export const a = 1;\n', 'utf8');
+
+      const logLines: string[] = [];
+      const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+        logLines.push(args.map(String).join(' '));
+      });
+
+      const program = createCliProgram('0.1.0');
+      await program.parseAsync(['node', 'repoguard', 'scan', subDir, '--format', 'json']);
+      logSpy.mockRestore();
+
+      // Report file on disk
+      const reportFiles = await fs.readdir(join(subDir, '.repoguard', 'reports'));
+      expect(reportFiles.some((f) => f.endsWith('.json'))).toBe(true);
+      expect(reportFiles.some((f) => f.endsWith('.html'))).toBe(false);
+      expect(reportFiles.some((f) => f.endsWith('.md'))).toBe(false);
+
+      // Stdout output
+      const output = logLines.join('\n').trim();
+      expect(output).not.toContain('R E P O G U A R D');
+      const parsed = JSON.parse(output);
+      expect(parsed.runId).toBeDefined();
+
+      await fs.rm(subDir, { recursive: true, force: true });
+    });
+
+    it('--format summary generates standard html and markdown reports', async () => {
+      const subDir = await fs.mkdtemp(join(tmpdir(), 'repoguard-format-sum-'));
+      await fs.mkdir(join(subDir, 'src'), { recursive: true });
+      await fs.writeFile(join(subDir, 'src', 'index.ts'), 'export const a = 1;\n', 'utf8');
+
+      const program = createCliProgram('0.1.0');
+      await program.parseAsync(['node', 'repoguard', 'scan', subDir, '--format', 'summary']);
+
+      const reportFiles = await fs.readdir(join(subDir, '.repoguard', 'reports'));
+      expect(reportFiles.some((f) => f.endsWith('.html'))).toBe(true);
+      expect(reportFiles.some((f) => f.endsWith('.md'))).toBe(true);
+      expect(reportFiles.some((f) => f.endsWith('.json'))).toBe(false);
+
+      await fs.rm(subDir, { recursive: true, force: true });
+    });
+
+    it('rejects invalid --format value and sets process.exitCode = 1', async () => {
+      const errLines: string[] = [];
+      const errSpy = vi.spyOn(console, 'error').mockImplementation((...args) => {
+        errLines.push(args.map(String).join(' '));
+      });
+
+      const initialExitCode = process.exitCode;
+      process.exitCode = 0;
+
+      const program = createCliProgram('0.1.0');
+      await program.parseAsync(['node', 'repoguard', 'scan', tempDir, '--format', 'invalid-format']);
+
+      errSpy.mockRestore();
+
+      expect(process.exitCode).toBe(1);
+      const output = errLines.join('\n');
+      expect(output).toContain('Invalid output format "invalid-format"');
+      expect(output).toContain('summary, json, html, markdown');
+
+      process.exitCode = initialExitCode;
+    });
+
+    it('--json flag combined with --format html emits JSON stdout while generating html report', async () => {
+      const subDir = await fs.mkdtemp(join(tmpdir(), 'repoguard-json-html-'));
+      await fs.mkdir(join(subDir, 'src'), { recursive: true });
+      await fs.writeFile(join(subDir, 'src', 'index.ts'), 'export const a = 1;\n', 'utf8');
+
+      const logLines: string[] = [];
+      const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+        logLines.push(args.map(String).join(' '));
+      });
+
+      const program = createCliProgram('0.1.0');
+      await program.parseAsync(['node', 'repoguard', 'scan', subDir, '--format', 'html', '--json']);
+      logSpy.mockRestore();
+
+      // Stdout is JSON
+      const output = logLines.join('\n').trim();
+      const parsed = JSON.parse(output);
+      expect(parsed.runId).toBeDefined();
+
+      // Disk report is only HTML
+      const reportFiles = await fs.readdir(join(subDir, '.repoguard', 'reports'));
+      expect(reportFiles.some((f) => f.endsWith('.html'))).toBe(true);
+      expect(reportFiles.some((f) => f.endsWith('.md'))).toBe(false);
+
+      await fs.rm(subDir, { recursive: true, force: true });
+    });
+  });
 });

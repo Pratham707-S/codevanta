@@ -23,6 +23,9 @@ import {
 } from '../formatter.js';
 import { ScanCommandOptions } from '../options.js';
 
+export const VALID_SCAN_FORMATS = ['summary', 'json', 'html', 'markdown'] as const;
+export type ScanOutputFormat = (typeof VALID_SCAN_FORMATS)[number];
+
 export function registerScanCommand(program: Command): void {
   program
     .command('scan [target]')
@@ -33,11 +36,27 @@ export function registerScanCommand(program: Command): void {
     .option('--open', 'Open the generated HTML report automatically in your default browser')
     .action(async (targetArg: string | undefined, _options: ScanCommandOptions, cmd: Command) => {
       const options = cmd.optsWithGlobals<ScanCommandOptions>();
+      const rawFormat = (options.format || 'summary').toLowerCase();
+
+      // Validate format parameter
+      if (!VALID_SCAN_FORMATS.includes(rawFormat as ScanOutputFormat)) {
+        const errorMsg = `Invalid output format "${options.format}". Supported formats are: ${VALID_SCAN_FORMATS.join(', ')}`;
+        if (options.json) {
+          console.error(JSON.stringify({ status: 'error', message: errorMsg }));
+        } else {
+          console.error(formatError(errorMsg));
+        }
+        process.exitCode = 1;
+        return;
+      }
+
+      const format = rawFormat as ScanOutputFormat;
+      const isJsonOutput = Boolean(options.json || format === 'json');
       const startTime = Date.now();
       const targetDir = resolve(targetArg || process.cwd());
 
       try {
-        if (!options.json) {
+        if (!isJsonOutput) {
           console.log(`\n${chalk.bold.hex('#38bdf8')('🛡️  Scanning repository:')} ${chalk.white(targetDir)}`);
         }
 
@@ -50,7 +69,7 @@ export function registerScanCommand(program: Command): void {
           },
         });
 
-        if (!options.json) {
+        if (!isJsonOutput) {
           console.log(formatStep(1, 4, `Configuration loaded (${chalk.dim(config.project.name)})`));
         }
 
@@ -66,7 +85,7 @@ export function registerScanCommand(program: Command): void {
           filesScanned = 1;
         }
 
-        if (!options.json) {
+        if (!isJsonOutput) {
           console.log(formatStep(2, 4, `Ingested ${chalk.bold(filesScanned)} source files safely`));
           console.log(formatStep(3, 4, `Secret redaction active: ${chalk.green('100% tokens protected')}`));
         }
@@ -99,15 +118,35 @@ export function registerScanCommand(program: Command): void {
         await runStore.saveRun(record);
         await stateStore.recordRun(record);
 
-        const builder = new ReportBuilder(record, { outputDir: options.outputDir });
-        const savedReports = await builder.saveReports(options.outputDir, ['html', 'markdown']);
+        // Determine which report file formats to persist to disk based on --format
+        let formatsToSave: ('markdown' | 'json' | 'html')[];
+        switch (format) {
+          case 'html':
+            formatsToSave = ['html'];
+            break;
+          case 'markdown':
+            formatsToSave = ['markdown'];
+            break;
+          case 'json':
+            formatsToSave = ['json'];
+            break;
+          case 'summary':
+          default:
+            formatsToSave = ['html', 'markdown'];
+            break;
+        }
 
-        if (!options.json) {
+        const reportsDir = options.outputDir || resolve(targetDir, config.storage.reportsDir);
+        const builder = new ReportBuilder(record, { outputDir: reportsDir });
+        const savedReports = await builder.saveReports(reportsDir, formatsToSave);
+
+        if (!isJsonOutput) {
           console.log(formatStep(4, 4, 'Audit findings synthesized & stored'));
           console.log('');
           console.log(formatSummaryTable(record.summary));
           console.log('');
           console.log(formatSuccess(`Scan completed cleanly in ${durationMs}ms with 0 critical findings!`));
+
           if (savedReports.htmlPath) {
             const uri = formatFileUri(savedReports.htmlPath);
             console.log(`  🌐 HTML Report: ${chalk.underline.cyan(uri)}`);
@@ -117,13 +156,19 @@ export function registerScanCommand(program: Command): void {
               openInBrowser(savedReports.htmlPath);
             }
           }
+          if (savedReports.markdownPath) {
+            console.log(`  📄 Markdown:    ${chalk.dim(savedReports.markdownPath)}`);
+          }
+          if (savedReports.jsonPath) {
+            console.log(`  📦 JSON Report: ${chalk.dim(savedReports.jsonPath)}`);
+          }
           console.log('');
         } else {
           console.log(JSON.stringify(record, null, 2));
         }
       } catch (err: unknown) {
         const error = err as Error;
-        if (options.json) {
+        if (isJsonOutput) {
           console.error(JSON.stringify({ status: 'error', message: error.message }));
         } else {
           console.error(formatError(`Scan failed: ${error.message}`));
