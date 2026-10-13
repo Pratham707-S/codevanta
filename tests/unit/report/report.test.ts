@@ -185,6 +185,37 @@ describe('Reporting Engine — Markdown, JSON, HTML & Builder', () => {
       expect(html).toContain('&lt;div onclick=&quot;hack()&quot;&gt;');
     });
 
+    it('safely maps severity CSS class without attribute injection for malformed or unknown severities', () => {
+      const malformedRecord: ScanRunRecord = {
+        runId: 'rg-malformed-sev',
+        projectName: 'safe-proj',
+        timestamp: '2026-10-12',
+        durationMs: 50,
+        repositoryRoot: '/test',
+        filesScanned: 1,
+        findingsCount: 1,
+        summary: { critical: 0, high: 0, medium: 0, low: 0, info: 1 },
+        findings: [
+          {
+            id: 'SEV-01',
+            title: 'Test issue',
+            // Malformed severity attempting attribute breakout
+            severity: 'CRITICAL" onfocus="alert(1)' as unknown as 'CRITICAL',
+            category: 'SECURITY',
+            path: 'test.ts',
+            explanation: 'Severity injection test',
+            evidence: 'test()',
+          },
+        ],
+      };
+
+      const html = formatHtmlReport(malformedRecord);
+
+      expect(html).toContain('finding-card border-info');
+      expect(html).not.toContain('onfocus="alert(1)"');
+      expect(html).not.toContain('border-critical"');
+    });
+
     it('renders clean empty state for 0 findings', () => {
       const html = formatHtmlReport(cleanRecord);
 
