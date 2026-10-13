@@ -69,7 +69,15 @@ export function formatHtmlReport(
         const badgeClass = severityBadgeClass[f.severity] || 'badge-info';
         const borderClass = severityBorderClass[f.severity] || 'border-info';
         const lineInfo = f.lineRange ? ` (Lines ${escapeHtml(f.lineRange.start)}–${escapeHtml(f.lineRange.end)})` : '';
-        const confidenceInfo = f.confidence !== undefined ? `<span class="confidence-tag">Confidence: ${(f.confidence * 100).toFixed(0)}%</span>` : '';
+        
+        // FIXED: Added missing multiplication operator and safeguard for confidence value
+        const confidenceVal = typeof f.confidence === 'number' 
+          ? (f.confidence <= 1 ? f.confidence * 100 : f.confidence) 
+          : undefined;
+        const confidenceInfo = confidenceVal !== undefined 
+          ? `<span class="confidence-tag">Confidence: ${confidenceVal.toFixed(0)}%</span>` 
+          : '';
+
         const evidenceBlock = (includeEvidence && f.evidence)
           ? `<pre class="evidence"><code>${escapeHtml(f.evidence)}</code></pre>`
           : '';
@@ -109,7 +117,6 @@ export function formatHtmlReport(
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      /* AI Warm Beige & Off-White Color System */
       --canvas: #f6f3eb;
       --canvas-subtle: #efebe0;
       --card-bg: #ffffff;
@@ -118,27 +125,21 @@ export function formatHtmlReport(
       --text-subtle: #968e83;
       --border: #e4dfd3;
       --border-subtle: #ebe7de;
-
       --critical: #c5221f;
       --critical-bg: #fdf2f2;
       --critical-border: #f8b4b4;
-
       --high: #b45309;
       --high-bg: #fef8ee;
       --high-border: #fcd34d;
-
       --medium: #b45309;
       --medium-bg: #fffbeb;
       --medium-border: #fde68a;
-
       --low: #1d4ed8;
       --low-bg: #eff6ff;
       --low-border: #bfdbfe;
-
       --info: #44403c;
       --info-bg: #f5f5f4;
       --info-border: #d6d3d1;
-
       --success: #15803d;
       --primary: #201e1b;
       --primary-hover: #000000;
@@ -245,7 +246,6 @@ export function formatHtmlReport(
     }
     .stat-val { font-size: 1.75rem; font-weight: 700; line-height: 1.1; margin-bottom: 0.2rem; }
     .stat-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-
     .section-title {
       font-size: 1.15rem;
       font-weight: 700;
@@ -266,7 +266,6 @@ export function formatHtmlReport(
     .border-medium { border-left: 4px solid var(--medium); }
     .border-low { border-left: 4px solid var(--low); }
     .border-info { border-left: 4px solid var(--info); }
-
     .finding-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
     .finding-number { color: var(--text-subtle); font-weight: 600; font-size: 0.9rem; }
     .finding-title { font-size: 1.05rem; font-weight: 600; color: var(--text); flex: 1; }
