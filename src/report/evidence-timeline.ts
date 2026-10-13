@@ -7,18 +7,31 @@
  */
 
 export interface TimelineEvent {
-  timestamp: string;
-  step: string;
-  detail: string;
+  timestamp?: string;
+  step?: string;
+  detail?: string;
   status?: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
   durationMs?: number;
+}
+
+/**
+ * Safely escapes markdown table characters and prevents crashes on missing values.
+ */
+function escapeTableCell(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r\n|\r|\n/g, ' ');
 }
 
 /**
  * Renders an evidence timeline as a formatted Markdown section.
  */
 export function formatEvidenceTimelineMarkdown(events: TimelineEvent[]): string {
-  if (!events || events.length === 0) {
+  if (!Array.isArray(events) || events.length === 0) {
     return '_No timeline events recorded._';
   }
 
@@ -29,11 +42,26 @@ export function formatEvidenceTimelineMarkdown(events: TimelineEvent[]): string 
   lines.push('| :--- | :--- | :--- | :--- | :--- |');
 
   for (const ev of events) {
-    const statusIcon = ev.status === 'ERROR' ? '❌' :
-      ev.status === 'WARNING' ? '⚠️' :
-      ev.status === 'SUCCESS' ? '✅' : 'ℹ️';
-    const dur = ev.durationMs !== undefined ? `${ev.durationMs}ms` : '-';
-    lines.push(`| \`${ev.timestamp}\` | **${ev.step}** | ${statusIcon} ${ev.status || 'INFO'} | ${ev.detail} | ${dur} |`);
+    const statusIcon =
+      ev?.status === 'ERROR' ? '❌' :
+      ev?.status === 'WARNING' ? '⚠️' :
+      ev?.status === 'SUCCESS' ? '✅' : 'ℹ️';
+
+    const dur =
+      typeof ev?.durationMs === 'number' &&
+      Number.isFinite(ev.durationMs) &&
+      ev.durationMs >= 0
+        ? `${ev.durationMs}ms`
+        : '-';
+
+    const timestamp = escapeTableCell(ev?.timestamp || 'N/A');
+    const step = escapeTableCell(ev?.step || 'Unknown Step');
+    const detail = escapeTableCell(ev?.detail || '');
+    const status = ev?.status || 'INFO';
+
+    lines.push(
+      `| \`${timestamp}\` | **${step}** | ${statusIcon} ${status} | ${detail} | ${dur} |`
+    );
   }
 
   lines.push('');
