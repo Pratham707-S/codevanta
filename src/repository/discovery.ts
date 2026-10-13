@@ -4,10 +4,7 @@
  * Path: src/repository/discovery.ts
  * Owner: Manni
  * Purpose: Repository discovery: find repo root, detect languages and build tools
- *
- * @todo Implementation planned in assigned milestone.
  */
-
 
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -93,6 +90,12 @@ function hasRootMarker(directory: string): boolean {
 /**
  * Find the nearest repository/project root by walking upwards.
  *
+ * Walks upward from the provided path (or process.cwd()) stopping at the first
+ * directory containing any recognized root marker (e.g. .git directory, .git worktree
+ * file, package.json, pyproject.toml, etc.). If a repository contains nested packages
+ * or monorepo subprojects, it returns the nearest matching child project directory
+ * rather than walking further to an enclosing ancestor repository.
+ *
  * Returns null if no recognized root marker is found.
  * The function does not create, modify, or delete files.
  */
@@ -122,7 +125,10 @@ export function findRepositoryRoot(
 
 /**
  * Detect languages from a list of repository-relative or absolute file paths.
+ *
  * Returns unique language names in deterministic alphabetical order.
+ * File extensions are normalized case-insensitively (e.g. .TS, .tsx).
+ * Filenames without extensions or with unrecognized extensions are safely skipped.
  */
 export function detectLanguage(
   filePaths: readonly string[],
@@ -143,7 +149,12 @@ export function detectLanguage(
 
 /**
  * Detect project tools from configuration files in the root directory.
- * This checks root-level markers only; it does not recursively scan files.
+ *
+ * Note: This performs marker-based detection by inspecting root-level files only.
+ * It does not recursively scan files, nor does it guarantee that the detected tool
+ * is installed, executable, or functioning in the system environment.
+ *
+ * Returns an empty array if the directory does not exist or cannot be read.
  */
 export function detectProjectTools(rootPath: string): string[] {
   const tools = new Set<string>();
@@ -167,4 +178,3 @@ export function detectProjectTools(rootPath: string): string[] {
 
   return [...tools].sort((a, b) => a.localeCompare(b));
 }
-
