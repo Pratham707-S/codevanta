@@ -31,7 +31,8 @@ export function registerScanCommand(program: Command): void {
     .option('--format <format>', 'Output format: summary, json, html, markdown', 'summary')
     .option('--output-dir <path>', 'Custom directory to save report artifacts')
     .option('--open', 'Open the generated HTML report automatically in your default browser')
-    .action(async (targetArg: string | undefined, options: ScanCommandOptions) => {
+    .action(async (targetArg: string | undefined, _options: ScanCommandOptions, cmd: Command) => {
+      const options = cmd.optsWithGlobals<ScanCommandOptions>();
       const startTime = Date.now();
       const targetDir = resolve(targetArg || process.cwd());
 

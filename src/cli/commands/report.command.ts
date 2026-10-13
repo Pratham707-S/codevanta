@@ -20,7 +20,8 @@ export function registerReportCommand(program: Command): void {
     .option('--format <format>', 'Report format: html, markdown, or json', 'html')
     .option('--output-dir <path>', 'Custom directory to save report output')
     .option('--open', 'Open the HTML report automatically in your default browser')
-    .action(async (runIdArg: string | undefined, options: ReportCommandOptions) => {
+    .action(async (runIdArg: string | undefined, _options: ReportCommandOptions, cmd: Command) => {
+      const options = cmd.optsWithGlobals<ReportCommandOptions>();
       try {
         const runStore = new RunStore();
         const record = runIdArg ? await runStore.getRun(runIdArg) : await runStore.getLatestRun();
@@ -35,7 +36,7 @@ export function registerReportCommand(program: Command): void {
           return;
         }
 
-        const format = options.format || 'html';
+        const format = options.json ? 'json' : (options.format || 'html');
         const builder = new ReportBuilder(record, { outputDir: options.outputDir });
 
         if (format === 'json') {

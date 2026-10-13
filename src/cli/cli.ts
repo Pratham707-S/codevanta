@@ -31,8 +31,8 @@ export function createCliProgram(version: string = '0.1.0'): Command {
   registerStatusCommand(program);
 
   // Hook to display animated startup effect on non-json, interactive terminal runs
-  program.hook('preAction', async (thisCommand, actionCommand) => {
-    const opts = thisCommand.opts();
+  program.hook('preAction', async (_thisCommand, actionCommand) => {
+    const opts = actionCommand.optsWithGlobals();
     if (!opts['json'] && actionCommand.name() !== 'help') {
       await renderStartupEffect({ version });
     }

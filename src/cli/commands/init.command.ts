@@ -7,18 +7,28 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, basename } from 'node:path';
 import { Command } from 'commander';
 import { DEFAULT_CONFIG } from '../../config/schema.js';
 import { formatSuccess, formatWarning, formatError } from '../formatter.js';
 import { InitCommandOptions } from '../options.js';
+
+/**
+ * Extracts a normalized project name from a directory path across POSIX and Windows.
+ */
+export function extractProjectName(cwdPath: string): string {
+  const normalized = resolve(cwdPath).replace(/\\/g, '/');
+  const name = basename(normalized);
+  return name && name !== '.' && name !== '/' ? name : 'repoguard-project';
+}
 
 export function registerInitCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize .repoguard configuration file in current repository')
     .option('-f, --force', 'Overwrite existing configuration file if it already exists')
-    .action(async (options: InitCommandOptions) => {
+    .action(async (_options: InitCommandOptions, cmd: Command) => {
+      const options = cmd.optsWithGlobals<InitCommandOptions>();
       const cwd = process.cwd();
       const repoguardDir = resolve(cwd, '.repoguard');
       const configPath = join(repoguardDir, 'config.json');
@@ -49,7 +59,7 @@ export function registerInitCommand(program: Command): void {
           ...DEFAULT_CONFIG,
           project: {
             ...DEFAULT_CONFIG.project,
-            name: resolve(cwd).split('/').pop() || 'repoguard-project',
+            name: extractProjectName(cwd),
             root: '.',
           },
         };

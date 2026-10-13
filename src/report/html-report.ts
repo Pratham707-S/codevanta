@@ -49,6 +49,14 @@ export function formatHtmlReport(
     INFO: 'badge-info',
   };
 
+  const severityBorderClass: Record<string, string> = {
+    CRITICAL: 'border-critical',
+    HIGH: 'border-high',
+    MEDIUM: 'border-medium',
+    LOW: 'border-low',
+    INFO: 'border-info',
+  };
+
   const findingsHtml = findings.length === 0
     ? `
       <div class="empty-state">
@@ -59,6 +67,7 @@ export function formatHtmlReport(
     `
     : findings.map((f, i) => {
         const badgeClass = severityBadgeClass[f.severity] || 'badge-info';
+        const borderClass = severityBorderClass[f.severity] || 'border-info';
         const lineInfo = f.lineRange ? ` (Lines ${escapeHtml(f.lineRange.start)}–${escapeHtml(f.lineRange.end)})` : '';
         const confidenceInfo = f.confidence !== undefined ? `<span class="confidence-tag">Confidence: ${(f.confidence * 100).toFixed(0)}%</span>` : '';
         const evidenceBlock = (includeEvidence && f.evidence)
@@ -66,7 +75,7 @@ export function formatHtmlReport(
           : '';
 
         return `
-          <div class="finding-card border-${f.severity.toLowerCase()}">
+          <div class="finding-card ${borderClass}">
             <div class="finding-header">
               <span class="finding-number">#${i + 1}</span>
               <span class="badge ${badgeClass}">${escapeHtml(f.severity)}</span>

@@ -6,7 +6,7 @@
  * Purpose: E2E test: repoguard scan, status, and report command execution
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -35,9 +35,26 @@ describe('E2E: repoguard scan, status & report commands', () => {
     }
   });
 
-  it('scans directory, persists run to storage, and generates report files', async () => {
+  it('scans directory, persists run to storage, and generates report files with clean JSON stdout', async () => {
+    const logLines: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logLines.push(args.map(String).join(' '));
+    });
+
     const program = createCliProgram('0.1.0');
     await program.parseAsync(['node', 'repoguard', 'scan', tempDir, '--json']);
+    logSpy.mockRestore();
+
+    // Verify stdout is pure parseable JSON without ANSI startup banners
+    const combinedOutput = logLines.join('\n').trim();
+    expect(combinedOutput).not.toContain('R E P O G U A R D');
+    expect(combinedOutput).not.toContain('ENGINE INITIALIZED');
+    expect(combinedOutput).not.toContain('Audit Summary:');
+
+    const parsedRecord = JSON.parse(combinedOutput);
+    expect(parsedRecord.runId).toBeDefined();
+    expect(parsedRecord.filesScanned).toBeGreaterThanOrEqual(1);
+    expect(parsedRecord.findings).toBeDefined();
 
     // Check that state directory was created
     const stateFiles = await fs.readdir(join(tempDir, '.repoguard', 'state', 'runs'));
@@ -49,14 +66,73 @@ describe('E2E: repoguard scan, status & report commands', () => {
     expect(reportFiles.some((f) => f.endsWith('.md'))).toBe(true);
   });
 
-  it('status command reflects recorded scan run', async () => {
+  it('correctly passes and loads custom configuration via --config flag', async () => {
+    const customConfigPath = join(tempDir, 'custom-config.json');
+    const customConfig = {
+      $schema: 'https://repoguard.dev/schema.json',
+      version: '1.0.0',
+      project: {
+        name: 'custom-configured-audit',
+        root: '.',
+        exclude: ['node_modules/**', 'dist/**'],
+      },
+      scan: {
+        maxFileSize: 1048576,
+        redactSecrets: true,
+        includePatterns: [],
+      },
+      verification: {
+        timeoutMs: 15000,
+        allowedCommands: ['npm test'],
+      },
+      storage: {
+        stateDir: '.repoguard/state',
+        reportsDir: '.repoguard/reports',
+        cacheDir: '.repoguard/cache',
+      },
+      ai: {
+        provider: 'mock' as const,
+        model: 'gemini-2.5-pro',
+      },
+    };
+    await fs.writeFile(customConfigPath, JSON.stringify(customConfig), 'utf8');
+
+    const logLines: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logLines.push(args.map(String).join(' '));
+    });
+
+    const program = createCliProgram('0.1.0');
+    await program.parseAsync(['node', 'repoguard', 'scan', tempDir, '--config', customConfigPath, '--json']);
+    logSpy.mockRestore();
+
+    const output = logLines.join('\n').trim();
+    const record = JSON.parse(output);
+
+    expect(record.projectName).toBe('custom-configured-audit');
+  });
+
+  it('status command reflects recorded scan run and outputs clean JSON', async () => {
     // Run scan first
     const scanProg = createCliProgram('0.1.0');
     await scanProg.parseAsync(['node', 'repoguard', 'scan', tempDir, '--json']);
 
-    // Run status
+    // Run status with stdout spy
+    const statusLogs: string[] = [];
+    const statusSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      statusLogs.push(args.map(String).join(' '));
+    });
+
     const statusProg = createCliProgram('0.1.0');
     await statusProg.parseAsync(['node', 'repoguard', 'status', '--json']);
+    statusSpy.mockRestore();
+
+    const statusOutput = statusLogs.join('\n').trim();
+    expect(statusOutput).not.toContain('RepoGuard Repository Status');
+
+    const parsedStatus = JSON.parse(statusOutput);
+    expect(parsedStatus.state.lastRunId).toBeDefined();
+    expect(parsedStatus.history.length).toBeGreaterThanOrEqual(1);
 
     const stateContent = await fs.readFile(join(tempDir, '.repoguard', 'state', 'state.json'), 'utf8');
     const parsedState = JSON.parse(stateContent);

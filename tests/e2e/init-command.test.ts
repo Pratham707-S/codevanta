@@ -11,6 +11,7 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createCliProgram } from '../../src/cli/cli.js';
+import { extractProjectName } from '../../src/cli/commands/init.command.js';
 
 describe('E2E: repoguard init command', () => {
   let tempDir: string;
@@ -61,5 +62,21 @@ describe('E2E: repoguard init command', () => {
     await forceProgram.parseAsync(['node', 'repoguard', 'init', '--force', '--json']);
     const overwritten = await fs.readFile(configPath, 'utf8');
     expect(JSON.parse(overwritten).version).toBe('1.0.0');
+  });
+
+  it('extractProjectName extracts directory name across POSIX and Windows paths', () => {
+    // POSIX paths
+    expect(extractProjectName('/Users/pratham/workspace/my-service')).toBe('my-service');
+    expect(extractProjectName('/var/repo')).toBe('repo');
+
+    // Windows paths with backslashes
+    expect(extractProjectName('C:\\Users\\pratham\\projects\\windows-service')).toBe('windows-service');
+    expect(extractProjectName('D:\\repo\\banking-api')).toBe('banking-api');
+
+    // Windows paths with forward slashes
+    expect(extractProjectName('C:/repos/cool-app')).toBe('cool-app');
+
+    // Fallback for root / empty paths
+    expect(extractProjectName('/')).toBe('repoguard-project');
   });
 });

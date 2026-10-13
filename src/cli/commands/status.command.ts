@@ -17,7 +17,8 @@ export function registerStatusCommand(program: Command): void {
     .command('status')
     .description('Show repository audit status and recent scan history')
     .option('--history', 'Display detailed history of recent scans')
-    .action(async (options: StatusCommandOptions) => {
+    .action(async (_options: StatusCommandOptions, cmd: Command) => {
+      const options = cmd.optsWithGlobals<StatusCommandOptions>();
       try {
         const stateStore = new StateStore();
         const runStore = new RunStore();
