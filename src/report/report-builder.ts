@@ -57,7 +57,7 @@ export class ReportBuilder {
   private getEnrichedRecord(): ScanRunRecord & { timeline?: TimelineEvent[] } {
     return {
       ...this.record,
-      timeline: this.timelineEvents.length > 0 ? this.timelineEvents : (this.record as any).timeline,
+      timeline: this.timelineEvents.length > 0 ? this.timelineEvents : (this.record as ScanRunRecord & { timeline?: TimelineEvent[] }).timeline,
     };
   }
 

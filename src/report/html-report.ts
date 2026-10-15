@@ -40,6 +40,7 @@ export function formatHtmlReport(
   const pageTitle = escapeHtml(options.title || `RepoGuard Audit Report — ${record.projectName}`);
   const includeEvidence = options.includeEvidence !== false;
   const findings = record.findings || [];
+  const summary = record.summary || { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
 
   const severityBadgeClass: Record<string, string> = {
     CRITICAL: 'badge-critical',
@@ -70,7 +71,6 @@ export function formatHtmlReport(
         const borderClass = severityBorderClass[f.severity] || 'border-info';
         const lineInfo = f.lineRange ? ` (Lines ${escapeHtml(f.lineRange.start)}–${escapeHtml(f.lineRange.end)})` : '';
         
-        // FIXED: Added missing multiplication operator and safeguard for confidence value
         const confidenceVal = typeof f.confidence === 'number' 
           ? (f.confidence <= 1 ? f.confidence * 100 : f.confidence) 
           : undefined;
@@ -112,9 +112,6 @@ export function formatHtmlReport(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${pageTitle}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
       --canvas: #f6f3eb;
@@ -146,7 +143,7 @@ export function formatHtmlReport(
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background-color: var(--canvas);
       background-image: radial-gradient(circle at 10% 20%, rgba(255,255,255,0.7) 0%, transparent 40%),
                         radial-gradient(circle at 90% 80%, rgba(235,228,214,0.5) 0%, transparent 50%);
@@ -301,7 +298,7 @@ export function formatHtmlReport(
       border-bottom: 1px solid var(--border-subtle);
     }
     .finding-meta code {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       background: var(--canvas-subtle);
       color: #2e2a24;
       padding: 0.15rem 0.4rem;
@@ -315,7 +312,7 @@ export function formatHtmlReport(
       border-radius: 6px;
       padding: 0.85rem 1rem;
       overflow-x: auto;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.82rem;
       color: #7dd3fc;
     }
@@ -365,23 +362,23 @@ export function formatHtmlReport(
 
     <div class="stats-grid">
       <div class="stat-card" style="border-top: 3px solid var(--critical)">
-        <div class="stat-val" style="color: var(--critical)">${record.summary.critical}</div>
+        <div class="stat-val" style="color: var(--critical)">${summary.critical}</div>
         <div class="stat-label">Critical</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--high)">
-        <div class="stat-val" style="color: var(--high)">${record.summary.high}</div>
+        <div class="stat-val" style="color: var(--high)">${summary.high}</div>
         <div class="stat-label">High</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--medium)">
-        <div class="stat-val" style="color: var(--medium)">${record.summary.medium}</div>
+        <div class="stat-val" style="color: var(--medium)">${summary.medium}</div>
         <div class="stat-label">Medium</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--low)">
-        <div class="stat-val" style="color: var(--low)">${record.summary.low}</div>
+        <div class="stat-val" style="color: var(--low)">${summary.low}</div>
         <div class="stat-label">Low</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--info)">
-        <div class="stat-val" style="color: var(--info)">${record.summary.info}</div>
+        <div class="stat-val" style="color: var(--info)">${summary.info}</div>
         <div class="stat-label">Info</div>
       </div>
     </div>
@@ -399,13 +396,18 @@ export function formatHtmlReport(
   <script>
     const reportData = ${safeRecordJson};
     function downloadJsonReport() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportData, null, 2));
+      const jsonString = JSON.stringify(reportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
       const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", "repoguard-" + reportData.runId + ".json");
+      downloadAnchor.href = url;
+      downloadAnchor.download = "repoguard-" + (reportData.runId || 'scan') + ".json";
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+      
+      URL.revokeObjectURL(url);
     }
   </script>
 </body>
