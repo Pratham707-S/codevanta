@@ -1,6 +1,6 @@
 {
-  "name": "repoguard",
-  "version": "0.1.0",
+  "name": "repoguard-agent",
+  "version": "0.1.2",
   "description": "CLI-first AI software reliability tool providing safe, evidence-backed repository inspection, AI-assisted investigation, reviewable repairs, and controlled verification.",
   "type": "module",
   "bin": {
@@ -8,6 +8,17 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -23,11 +34,20 @@
     "verification",
     "cli"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pratham707-S/repoguard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Pratham707-S/repoguard/issues"
+  },
+  "homepage": "https://github.com/Pratham707-S/repoguard#readme",
   "engines": {
     "node": ">=22.0.0"
   },
   "license": "Apache-2.0",
   "dependencies": {
+    "@clack/prompts": "1.8.1",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "dotenv": "^16.4.7",

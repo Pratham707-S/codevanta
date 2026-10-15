@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RepoGuard — Comprehensive Architecture & Engineering Guide</title>
+  <style>
+    :root {
+      --bg-primary: #0a0d14;
+      --bg-secondary: #101623;
+      --bg-tertiary: #162032;
+      --bg-card: #131c2d;
+      --border-subtle: #1e293b;
+      --border-focus: #38bdf8;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-cyan: #38bdf8;
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+      --code-bg: #070a10;
+      --sidebar-width: 320px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      line-height: 1.65;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Navigation */
+    #sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--border-subtle);
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 24px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.08) 0%, transparent 100%);
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .search-box {
+      margin-top: 14px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .nav-list {
+      list-style: none;
+      padding: 16px 12px;
+      flex-grow: 1;
+    }
+
+    .nav-item {
+      margin-bottom: 4px;
+    }
+
+    .nav-link {
+      display: block;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      line-height: 1.4;
+    }
+
+    .nav-link:hover {
+      background-color: var(--bg-tertiary);
+      color: var(--accent-cyan);
+    }
+
+    .nav-link.active {
+      background-color: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      font-weight: 600;
+      border-left: 3px solid var(--accent-cyan);
+    }
+
+    .nav-chapter-num {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-block;
+      width: 22px;
+    }
+
+    /* Main Content Container */
+    #main-content {
+      flex-grow: 1;
+      padding: 40px 60px;
+      max-width: 1200px;
+      overflow-x: hidden;
+    }
+
+    header.doc-header {
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .doc-meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      flex-wrap: wrap;
+    }
+
+    .meta-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      color: var(--text-muted);
+    }
+
+    h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    h2 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      margin-top: 56px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h2 .section-tag {
+      font-size: 0.8rem;
+      padding: 3px 8px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      color: var(--accent-cyan);
+      font-family: monospace;
+      font-weight: 500;
+    }
+
+    h3 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-top: 32px;
+      margin-bottom: 12px;
+      color: #e2e8f0;
+    }
+
+    h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 8px;
+      color: var(--accent-cyan);
+    }
+
+    p {
+      margin-bottom: 16px;
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    ul, ol {
+      margin-bottom: 18px;
+      padding-left: 24px;
+      color: var(--text-muted);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    /* Cards & Callouts */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.05);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+
+    .callout.warning {
+      border-left-color: var(--accent-amber);
+      background: rgba(245, 158, 11, 0.07);
+    }
+
+    .callout.danger {
+      border-left-color: var(--accent-rose);
+      background: rgba(244, 63, 94, 0.08);
+    }
+
+    .callout.success {
+      border-left-color: var(--accent-emerald);
+      background: rgba(16, 185, 129, 0.07);
+    }
+
+    .callout-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+      color: var(--text-main);
+    }
+
+    /* Code Blocks & Terminal */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      margin: 16px 0 24px 0;
+      line-height: 1.5;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85em;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #38bdf8;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+      color: inherit;
+    }
+
+    .terminal-window {
+      background: #05070c;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      margin: 20px 0;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .terminal-bar {
+      background: #0f1523;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .terminal-title {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: monospace;
+      margin-left: 8px;
+    }
+
+    .terminal-body {
+      padding: 16px;
+      font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      overflow-x: auto;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border-subtle);
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    th {
+      background: var(--bg-secondary);
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .badge-verified { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-stub { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-partial { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-planned { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
+    .badge-critical { background: rgba(244, 63, 94, 0.2); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.3); }
+
+    /* Collapsible Details */
+    details {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 12px 0;
+    }
+
+    summary {
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-main);
+      outline: none;
+      user-select: none;
+    }
+
+    summary:hover {
+      color: var(--accent-cyan);
+    }
+
+    details[open] summary {
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* Diagrams (SVG) */
+    .diagram-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 24px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: auto;
+    }
+
+    .diagram-caption {
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    /* Q&A Accordion in Judge Section */
+    .qa-box {
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      margin-bottom: 14px;
+      background: var(--bg-card);
+      overflow: hidden;
+    }
+
+    .qa-header {
+      padding: 16px 20px;
+      background: var(--bg-secondary);
+      cursor: pointer;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-main);
+    }
+
+    .qa-header:hover {
+      color: var(--accent-cyan);
+    }
+
+    .qa-body {
+      padding: 18px 20px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-card);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+      }
+      #sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        max-height: 350px;
+      }
+      #main-content {
+        padding: 24px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-logo">
+        <span>🛡️ RepoGuard</span>
+        <span class="brand-badge">Guide</span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">
+        CLI-First AI Reliability Platform
+      </div>
+      <div class="search-box">
+        <input type="text" id="nav-search" class="search-input" placeholder="Search chapters & topics...">
+      </div>
+    </div>
+    <ul class="nav-list" id="nav-items">
+      <li class="nav-item"><a href="#ch1" class="nav-link active"><span class="nav-chapter-num">01</span> Project Overview</a></li>
+      <li class="nav-item"><a href="#ch2" class="nav-link"><span class="nav-chapter-num">02</span> Architecture & Design</a></li>
+      <li class="nav-item"><a href="#ch3" class="nav-link"><span class="nav-chapter-num">03</span> Implementation Breakdown</a></li>
+      <li class="nav-item"><a href="#ch4" class="nav-link"><span class="nav-chapter-num">04</span> CLI Commands & Options</a></li>
+      <li class="nav-item"><a href="#ch5" class="nav-link"><span class="nav-chapter-num">05</span> Core Technical Concepts</a></li>
+      <li class="nav-item"><a href="#ch6" class="nav-link"><span class="nav-chapter-num">06</span> Bug Fixes & Decisions</a></li>
+      <li class="nav-item"><a href="#ch7" class="nav-link"><span class="nav-chapter-num">07</span> Git & GitHub Workflow</a></li>
+      <li class="nav-item"><a href="#ch8" class="nav-link"><span class="nav-chapter-num">08</span> Pull Request #4 Case Study</a></li>
+      <li class="nav-item"><a href="#ch9" class="nav-link"><span class="nav-chapter-num">09</span> Testing & QA Strategy</a></li>
+      <li class="nav-item"><a href="#ch10" class="nav-link"><span class="nav-chapter-num">10</span> Current Limitations Matrix</a></li>
+      <li class="nav-item"><a href="#ch11" class="nav-link"><span class="nav-chapter-num">11</span> Team Collaboration Guide</a></li>
+      <li class="nav-item"><a href="#ch12" class="nav-link"><span class="nav-chapter-num">12</span> Judge & Interview Prep</a></li>
+      <li class="nav-item"><a href="#ch13" class="nav-link"><span class="nav-chapter-num">13</span> Technical Roadmap</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main id="main-content">
+    <header class="doc-header">
+      <h1>RepoGuard — Complete Engineering Guide</h1>
+      <p style="font-size: 1.15rem; color: #cbd5e1; max-width: 900px;">
+        A deep, exhaustive reference document explaining the codebase architecture, CLI engineering, test-driven security hardening, Git workflow, and roadmap for RepoGuard.
+      </p>
+      <div class="doc-meta">
+        <span class="meta-tag"><strong>Repository:</strong> repoguard</span>
+        <span class="meta-tag"><strong>Engine Version:</strong> v0.1.0</span>
+        <span class="meta-tag"><strong>Branch:</strong> feature/cli-improvements</span>
+        <span class="meta-tag"><strong>Verified Tests:</strong> 77/77 Passing (Vitest)</span>
+        <span class="meta-tag"><strong>Node.js:</strong> >=22.0.0</span>
+      </div>
+    </header>
+
+    <!-- CHAPTER 1 -->
+    <section id="ch1">
+      <h2><span class="section-tag">CH 01</span> Project Overview</h2>
+      
+      <h3>1.1 What is RepoGuard?</h3>
+      <p>
+        <strong>RepoGuard</strong> is a CLI-first, AI-assisted repository security and reliability platform built on Node.js and TypeScript. Designed with the core philosophy <em>"Fix with evidence. Verify before trust,"</em> RepoGuard bridges the gap between passive code scanners (linters and static analysis) and automated remediation. It provides structured code audits, multi-format reporting (HTML, Markdown, JSON), persistent scan histories, and strict sandboxed verification workflows.
+      </p>
+
+      <h3>1.2 The Problem RepoGuard Solves</h3>
+      <p>
+        Modern software development teams face three acute challenges:
+      </p>
+      <ul>
+        <li><strong>AI Code Hallucination:</strong> Generative AI tools frequently suggest syntax-plausible but fundamentally broken code patches, introducing subtle logic bugs or security regressions.</li>
+        <li><strong>Noisy Alert Fatigue:</strong> Traditional static analysis tools generate hundreds of context-free warnings with no automated verification or concrete proof of exploitability.</li>
+        <li><strong>Unsafe Automation:</strong> Automated fixing scripts frequently execute untrusted shell commands, expose secrets to cloud providers without sanitization, or modify production files without human approval gates.</li>
+      </ul>
+      <p>
+        RepoGuard was conceived to enforce <strong>evidence-backed repair</strong>: finding an issue, generating an audit timeline, validating repairs in isolated sandboxes, and presenting human-verifiable reports before any change reaches version control.
+      </p>
+
+      <h3>1.3 Target Audience</h3>
+      <ul>
+        <li><strong>Application Security (AppSec) Engineers:</strong> Looking for standardized CLI tools to embed in CI/CD pipelines to enforce security baselines.</li>
+        <li><strong>Full-Stack Developers:</strong> Needing quick, local code audits with instant visual reports in the browser without leaving the terminal.</li>
+        <li><strong>Engineering Leads:</strong> Wanting auditable records of repository health and deterministic repair verification before merging PRs.</li>
+      </ul>
+
+      <h3>1.4 Feature Status: Implemented vs. Planned</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Module / Feature</th>
+            <th>Status</th>
+            <th>Current Code Reality</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>CLI Command Suite</strong> (<code>init</code>, <code>scan</code>, <code>status</code>, <code>report</code>)</td>
+            <td><span class="badge badge-verified">Implemented & Verified</span></td>
+            <td>Full Commander.js CLI with global options, animated banners, and error handling. Tested across 77 passing test assertions.</td>
+          </tr>
+          <tr>
+            <td><strong>Multi-Format Reporting Engine</strong></td>
+            <td><span class="badge badge-verified">Implemented & Verified</span></td>
+            <td><code>ReportBuilder</code> generating standalone HTML reports with XSS entity escaping, Markdown summaries, and structured JSON.</td>
+          </tr>
+          <tr>
+            <td><strong>Safe Browser Launching</strong></td>
+            <td><span class="badge badge-verified">Implemented & Verified</span></td>
+            <td>Argument-based process spawning via <code>child_process.spawn</code> avoiding shell execution on macOS, Linux, and Windows.</td>
+          </tr>
+          <tr>
+            <td><strong>Cascading Configuration & Validation</strong></td>
+            <td><span class="badge badge-verified">Implemented & Verified</span></td>
+            <td>Zod-validated schema with default fallbacks, <code>.repoguard/config.json</code>, env vars, and <code>--config</code> flag overrides.</td>
+          </tr>
+          <tr>
+            <td><strong>Run & State Storage</strong></td>
+            <td><span class="badge badge-verified">Implemented & Verified</span></td>
+            <td>File-backed persistence in <code>.repoguard/state/runs/</code> and <code>.repoguard/state/state.json</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Security Analysis Engine</strong> (Rules & Agents)</td>
+            <td><span class="badge badge-stub">Stubbed / Placeholder</span></td>
+            <td><code>src/analysis/orchestrator.ts</code> and rule files exist as stubs. Scan command currently records 0 findings cleanly.</td>
+          </tr>
+          <tr>
+            <td><strong>Secret Redaction Engine</strong></td>
+            <td><span class="badge badge-stub">Stubbed / Placeholder</span></td>
+            <td><code>src/context/secret-redactor.ts</code> is an empty stub. Terminal progress message ("100% tokens protected") is cosmetic.</td>
+          </tr>
+          <tr>
+            <td><strong>AI Provider Integration</strong> (Gemini)</td>
+            <td><span class="badge badge-stub">Stubbed / Planned</span></td>
+            <td><code>src/providers/gemini-adapter.ts</code> is stubbed with planned milestone annotations.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>1.5 Simple Explanation for a Non-Technical Judge</h3>
+      <div class="callout">
+        <div class="callout-title">💡 The Elevator Pitch</div>
+        <p>
+          "Imagine a mechanic inspecting your car who doesn't just hand you a confusing 50-page printout of engine codes, but tests the spark plugs, replaces the bad wire, runs the engine in a test bench to prove it works, and gives you a visual dashboard of exactly what was done before asking for your approval. That is RepoGuard: an intelligent command-line copilot that scans your code, generates evidence-backed fixes, verifies them safely, and gives engineers complete transparency."
+        </p>
+      </div>
+    </section>
+
+    <!-- CHAPTER 2 -->
+    <section id="ch2">
+      <h2><span class="section-tag">CH 02</span> Project Architecture & Design</h2>
+      
+      <h3>2.1 Directory Structure & File Responsibilities</h3>
+      <pre><code>repoguard/
+├── src/
+│   ├── index.ts                     # Main library and bin entry point
+│   ├── cli/                         # CLI Layer (Commander.js, terminal UI)
+│   │   ├── cli.ts                   # Root program creation, global options, preAction hook
+│   │   ├── formatter.ts             # Chalk styling, animated banner, safe spawn browser launcher
+│   │   ├── options.ts               # TypeScript interfaces for command and global options
+│   │   └── commands/                # Command handlers
+│   │       ├── init.command.ts      # 'repoguard init': config creation & name extraction
+│   │       ├── scan.command.ts      # 'repoguard scan': ingestion, record synthesis, format dispatch
+│   │       ├── status.command.ts    # 'repoguard status': run state & scan history table
+│   │       └── report.command.ts    # 'repoguard report': export & browser launch for run records
+│   ├── config/                      # Configuration Subsystem
+│   │   ├── schema.ts                # Zod schemas (RepoGuardConfig) and default configurations
+│   │   ├── loader.ts                # Cascading configuration loader (File -> Env -> Flags)
+│   │   └── config.schema.json       # JSON-Schema definition for IDE autocomplete
+│   ├── storage/                     # File-backed Persistence Subsystem
+│   │   ├── run-store.ts             # Saves and retrieves individual ScanRunRecord JSON files
+│   │   └── state-store.ts           # Maintains latest run ID and global scan history in state.json
+│   ├── report/                      # Reporting Subsystem
+│   │   ├── html-report.ts           # Standalone HTML generator with XSS escaping & JSON export
+│   │   ├── markdown-report.ts       # Markdown summary tables & findings
+│   │   ├── json-report.ts           # Raw JSON formatter
+│   │   ├── evidence-timeline.ts     # Markdown audit trail timeline formatter
+│   │   └── report-builder.ts        # Orchestrates generation and disk-writing of all formats
+│   ├── context/                     # Context Extraction & Sanitization (Stubs)
+│   │   └── secret-redactor.ts       # Token & secret redaction stub
+│   ├── analysis/                    # Static & AI Analysis Engine (Stubs)
+│   │   └── orchestrator.ts          # Analysis pass orchestrator stub
+│   ├── repair/                      # Automated Patch & Approval Subsystem
+│   │   ├── patch-parser.ts          # Unified diff parser
+│   │   ├── patch-applicator.ts      # Git apply patch engine
+│   │   └── approval-gate.ts         # User confirmation prompts
+│   ├── verification/                # Isolated Sandbox & Check Runners
+│   │   ├── check-runner.ts          # Local command execution
+│   │   └── sandbox/docker-runner.ts # Containerized verification runner
+│   └── providers/                   # LLM Provider Adapters (Stubs)
+│       ├── provider.contract.ts     # Interface for AI completions
+│       └── gemini-adapter.ts        # Google Gemini adapter stub
+├── tests/                           # Vitest Test Suite
+│   ├── unit/                        # Unit tests (formatter, config, storage, report)
+│   ├── e2e/                         # End-to-end CLI tests (init, scan, status, report)
+│   └── security/                    # Security validation tests (stubs awaiting integration)
+├── docs/                            # Project documentation & architectural guides
+├── package.json                     # NPM manifest, scripts, and dependencies
+└── tsconfig.json                    # TypeScript compiler configuration</code></pre>
+
+      <h3>2.2 Architectural Layers & Clean Architecture Pattern</h3>
+      <p>
+        RepoGuard adheres to a <strong>Clean Architecture / Ports & Adapters</strong> design:
+      </p>
+      <ul>
+        <li><strong>Presentation / CLI Layer (<code>src/cli</code>):</strong> Interacts with the user, parses arguments, controls process exit codes, and prints styled terminal feedback.</li>
+        <li><strong>Application Core (<code>src/application</code> &amp; Command Handlers):</strong> Coordinates use cases: loading config, requesting file ingestion, invoking persistence, and triggering reports.</li>
+        <li><strong>Infrastructure Adapters (<code>src/storage</code>, <code>src/report</code>):</strong> Implements concrete persistence (file system JSON files) and output rendering (HTML templates, Markdown generators).</li>
+        <li><strong>Domain Models (<code>src/domain</code>):</strong> Holds the canonical representations of findings, severities, run records, and evidence timelines.</li>
+      </ul>
+
+      <div class="diagram-container">
+        <!-- System Architecture Inline SVG -->
+        <svg width="780" height="340" viewBox="0 0 780 340" xmlns="http://www.w3.org/2000/svg">
+          <rect width="780" height="340" rx="12" fill="#0d131f" stroke="#1e293b" />
+          
+          <!-- CLI Box -->
+          <rect x="30" y="30" width="720" height="60" rx="8" fill="#162032" stroke="#38bdf8" stroke-width="1.5" />
+          <text x="390" y="66" fill="#38bdf8" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">CLI Presentation Layer (src/cli/cli.ts &amp; Commander)</text>
+          
+          <!-- Subcommands -->
+          <rect x="60" y="120" width="140" height="50" rx="6" fill="#1a263d" stroke="#334155" />
+          <text x="130" y="150" fill="#f1f5f9" font-family="monospace" font-size="13" text-anchor="middle">repoguard init</text>
+
+          <rect x="230" y="120" width="140" height="50" rx="6" fill="#1a263d" stroke="#38bdf8" />
+          <text x="300" y="150" fill="#f1f5f9" font-family="monospace" font-size="13" text-anchor="middle">repoguard scan</text>
+
+          <rect x="400" y="120" width="140" height="50" rx="6" fill="#1a263d" stroke="#334155" />
+          <text x="470" y="150" fill="#f1f5f9" font-family="monospace" font-size="13" text-anchor="middle">repoguard status</text>
+
+          <rect x="570" y="120" width="140" height="50" rx="6" fill="#1a263d" stroke="#334155" />
+          <text x="640" y="150" fill="#f1f5f9" font-family="monospace" font-size="13" text-anchor="middle">repoguard report</text>
+
+          <!-- Core Modules -->
+          <rect x="50" y="210" width="200" height="90" rx="8" fill="#111827" stroke="#10b981" />
+          <text x="150" y="240" fill="#10b981" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Config Engine</text>
+          <text x="150" y="265" fill="#94a3b8" font-family="monospace" font-size="11" text-anchor="middle">loader.ts &amp; schema.ts</text>
+          <text x="150" y="283" fill="#64748b" font-family="sans-serif" font-size="10" text-anchor="middle">Zod validation &amp; env overrides</text>
+
+          <rect x="290" y="210" width="200" height="90" rx="8" fill="#111827" stroke="#f59e0b" />
+          <text x="390" y="240" fill="#f59e0b" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Storage Subsystem</text>
+          <text x="390" y="265" fill="#94a3b8" font-family="monospace" font-size="11" text-anchor="middle">RunStore &amp; StateStore</text>
+          <text x="390" y="283" fill="#64748b" font-family="sans-serif" font-size="10" text-anchor="middle">.repoguard/state/ JSON storage</text>
+
+          <rect x="530" y="210" width="200" height="90" rx="8" fill="#111827" stroke="#a855f7" />
+          <text x="630" y="240" fill="#a855f7" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Report Generator</text>
+          <text x="630" y="265" fill="#94a3b8" font-family="monospace" font-size="11" text-anchor="middle">ReportBuilder &amp; HTML</text>
+          <text x="630" y="283" fill="#64748b" font-family="sans-serif" font-size="10" text-anchor="middle">XSS sanitization &amp; exports</text>
+
+          <!-- Connecting Arrows -->
+          <line x1="300" y1="90" x2="300" y2="120" stroke="#38bdf8" stroke-width="2" />
+          <line x1="150" y1="170" x2="150" y2="210" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4" />
+          <line x1="300" y1="170" x2="390" y2="210" stroke="#f59e0b" stroke-width="1.5" />
+          <line x1="640" y1="170" x2="630" y2="210" stroke="#a855f7" stroke-width="1.5" />
+        </svg>
+        <span class="diagram-caption">Figure 2.1: System Architecture and Modular Boundaries of RepoGuard</span>
+      </div>
+
+      <h3>2.3 Real Execution Flow: The <code>scan</code> Pipeline</h3>
+      <p>
+        When a user runs <code>repoguard scan [target] --format html --open</code>, the following real sequence executes step-by-step:
+      </p>
+      <div class="diagram-container">
+        <!-- Execution Flow SVG -->
+        <svg width="780" height="420" viewBox="0 0 780 420" xmlns="http://www.w3.org/2000/svg">
+          <rect width="780" height="420" rx="10" fill="#090d16" stroke="#1e293b" />
+          
+          <!-- Steps -->
+          <g transform="translate(40, 25)">
+            <circle cx="20" cy="20" r="16" fill="#1e293b" stroke="#38bdf8" stroke-width="2" />
+            <text x="20" y="25" fill="#38bdf8" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">1</text>
+            <text x="50" y="25" fill="#f1f5f9" font-family="sans-serif" font-size="14" font-weight="bold">Commander Parsing &amp; PreAction Hook</text>
+            <text x="50" y="45" fill="#94a3b8" font-family="sans-serif" font-size="12">Extracts optsWithGlobals(). If not JSON mode, displays animated terminal cyberpunk banner.</text>
+          </g>
+
+          <g transform="translate(40, 95)">
+            <circle cx="20" cy="20" r="16" fill="#1e293b" stroke="#38bdf8" stroke-width="2" />
+            <text x="20" y="25" fill="#38bdf8" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">2</text>
+            <text x="50" y="25" fill="#f1f5f9" font-family="sans-serif" font-size="14" font-weight="bold">Format Validation &amp; Configuration Load</text>
+            <text x="50" y="45" fill="#94a3b8" font-family="sans-serif" font-size="12">Validates format against ['summary', 'json', 'html', 'markdown']. Loads cascading RepoGuardConfig.</text>
+          </g>
+
+          <g transform="translate(40, 165)">
+            <circle cx="20" cy="20" r="16" fill="#1e293b" stroke="#38bdf8" stroke-width="2" />
+            <text x="20" y="25" fill="#38bdf8" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">3</text>
+            <text x="50" y="25" fill="#f1f5f9" font-family="sans-serif" font-size="14" font-weight="bold">Safe Source Discovery &amp; Run Record Synthesis</text>
+            <text x="50" y="45" fill="#94a3b8" font-family="sans-serif" font-size="12">Counts repository files excluding node_modules/.git. Assembles canonical ScanRunRecord.</text>
+          </g>
+
+          <g transform="translate(40, 235)">
+            <circle cx="20" cy="20" r="16" fill="#1e293b" stroke="#38bdf8" stroke-width="2" />
+            <text x="20" y="25" fill="#38bdf8" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">4</text>
+            <text x="50" y="25" fill="#f1f5f9" font-family="sans-serif" font-size="14" font-weight="bold">State Persistence &amp; Format-Specific Report Generation</text>
+            <text x="50" y="45" fill="#94a3b8" font-family="sans-serif" font-size="12">Writes run to RunStore and StateStore. ReportBuilder saves requested format(s) to reports directory.</text>
+          </g>
+
+          <g transform="translate(40, 305)">
+            <circle cx="20" cy="20" r="16" fill="#1e293b" stroke="#10b981" stroke-width="2" />
+            <text x="20" y="25" fill="#10b981" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">5</text>
+            <text x="50" y="25" fill="#f1f5f9" font-family="sans-serif" font-size="14" font-weight="bold">Output Rendering &amp; Browser Launch</text>
+            <text x="50" y="45" fill="#94a3b8" font-family="sans-serif" font-size="12">Prints formatted summary table or JSON. If --open passed, launches report safely with openInBrowser().</text>
+          </g>
+
+          <line x1="60" y1="65" x2="60" y2="95" stroke="#1e293b" stroke-width="2" />
+          <line x1="60" y1="135" x2="60" y2="165" stroke="#1e293b" stroke-width="2" />
+          <line x1="60" y1="205" x2="60" y2="235" stroke="#1e293b" stroke-width="2" />
+          <line x1="60" y1="275" x2="60" y2="305" stroke="#1e293b" stroke-width="2" />
+        </svg>
+        <span class="diagram-caption">Figure 2.2: Scan Command Execution Pipeline</span>
+      </div>
+    </section>
+
+    <!-- CHAPTER 3 -->
+    <section id="ch3">
+      <h2><span class="section-tag">CH 03</span> Every Important Implementation</h2>
+
+      <h3>3.1 CLI Entry Point: <code>src/cli/cli.ts</code></h3>
+      <p>
+        The CLI entry point defines the root Commander instance, sets up global options, and handles lifecycle hooks:
+      </p>
+      <pre><code>export function createCliProgram(version: string = '0.1.0'): Command {
+  const program = new Command('repoguard');
+
+  program
+    .version(version, '-v, --version', 'Output the current version of RepoGuard')
+    .description('Autonomous Code Reliability, Security & Verified Repair Platform 🛡️')
+    .option('-c, --config <path>', 'Path to custom repoguard.config.json file')
+    .option('--json', 'Output results in machine-readable JSON format')
+    .option('--no-color', 'Disable terminal color output')
+    .addHelpText('before', `
+${getStaticBanner(version)}
+`);
+
+  // Register all CLI commands
+  registerInitCommand(program);
+  registerScanCommand(program);
+  registerReportCommand(program);
+  registerStatusCommand(program);
+
+  // Hook to display animated startup effect on non-json, interactive terminal runs
+  program.hook('preAction', async (_thisCommand, actionCommand) => {
+    const opts = actionCommand.optsWithGlobals();
+    const isJson = Boolean(opts['json'] || opts['format'] === 'json');
+    if (!isJson && actionCommand.name() !== 'help') {
+      await renderStartupEffect({ version });
+    }
+  });
+
+  return program;
+}</code></pre>
+      <div class="callout">
+        <div class="callout-title">🔍 Line-by-Line Logic &amp; Design Decisions:</div>
+        <ul>
+          <li><strong>Commander Factory Function:</strong> <code>createCliProgram()</code> returns a fresh <code>Command</code> instance rather than exporting a singleton. This enables Vitest test cases to instantiate isolated programs with clean arguments without side-effect pollution.</li>
+          <li><strong>Global Options:</strong> Declared on the root program so they can precede or follow subcommands (e.g. <code>repoguard --json scan</code> and <code>repoguard scan --json</code>).</li>
+          <li><strong>PreAction Banner Suppression:</strong> Notice <code>const isJson = Boolean(opts['json'] || opts['format'] === 'json');</code>. If JSON stdout is requested, the ASCII banner is suppressed immediately, ensuring that piping stdout into <code>jq</code> or JSON parsers produces no syntax errors.</li>
+        </ul>
+      </div>
+
+      <h3>3.2 Scan Command: <code>src/cli/commands/scan.command.ts</code></h3>
+      <p>
+        The scan command coordinates format validation, config ingestion, file scanning, and output generation:
+      </p>
+      <pre><code>export const VALID_SCAN_FORMATS = ['summary', 'json', 'html', 'markdown'] as const;
+export type ScanOutputFormat = (typeof VALID_SCAN_FORMATS)[number];
+
+export function registerScanCommand(program: Command): void {
+  program
+    .command('scan [target]')
+    .description('Scan repository codebase for reliability bugs, vulnerabilities, and secrets')
+    .option('-t, --timeout <ms>', 'Verification execution timeout in milliseconds')
+    .option('--format <format>', 'Output format: summary, json, html, markdown', 'summary')
+    .option('--output-dir <path>', 'Custom directory to save report artifacts')
+    .option('--open', 'Open the generated HTML report automatically in your default browser')
+    .action(async (targetArg: string | undefined, _options: ScanCommandOptions, cmd: Command) => {
+      const options = cmd.optsWithGlobals<ScanCommandOptions>();
+      const rawFormat = (options.format || 'summary').toLowerCase();
+
+      // 1. Validate format parameter
+      if (!VALID_SCAN_FORMATS.includes(rawFormat as ScanOutputFormat)) {
+        const errorMsg = `Invalid output format "${options.format}". Supported formats are: ${VALID_SCAN_FORMATS.join(', ')}`;
+        if (options.json) {
+          console.error(JSON.stringify({ status: 'error', message: errorMsg }));
+        } else {
+          console.error(formatError(errorMsg));
+        }
+        process.exitCode = 1;
+        return;
+      }
+      const format = rawFormat as ScanOutputFormat;
+      const isJsonOutput = Boolean(options.json || format === 'json');
+      // ...</code></pre>
+      <p>
+        Format-to-disk dispatch logic in <code>scan.command.ts</code>:
+      </p>
+      <pre><code>      // Determine which report file formats to persist to disk based on --format
+      let formatsToSave: ('markdown' | 'json' | 'html')[];
+      switch (format) {
+        case 'html':
+          formatsToSave = ['html'];
+          break;
+        case 'markdown':
+          formatsToSave = ['markdown'];
+          break;
+        case 'json':
+          formatsToSave = ['json'];
+          break;
+        case 'summary':
+        default:
+          formatsToSave = ['html', 'markdown'];
+          break;
+      }
+
+      const reportsDir = options.outputDir || resolve(targetDir, config.storage.reportsDir);
+      const builder = new ReportBuilder(record, { outputDir: reportsDir });
+      const savedReports = await builder.saveReports(reportsDir, formatsToSave);</code></pre>
+
+      <h3>3.3 Browser Launcher Safety &amp; Windows Path Normalization: <code>src/cli/formatter.ts</code></h3>
+      <p>
+        Launching a generated HTML report in the user's browser is an essential convenience (<code>--open</code>), but if implemented with shell-string concatenation (e.g., <code>exec(`open ${path}`)</code>), it introduces a critical <strong>Command Injection Vulnerability</strong>.
+      </p>
+      <pre><code>export function toAbsolutePath(filePath: string): string {
+  if (
+    filePath.startsWith('/') ||
+    /^[a-zA-Z]:[\/]/.test(filePath) ||
+    posix.isAbsolute(filePath) ||
+    win32.isAbsolute(filePath)
+  ) {
+    return filePath;
+  }
+  return resolve(process.cwd(), filePath);
+}
+
+export function getOpenCommand(
+  filePath: string,
+  platform: NodeJS.Platform = process.platform
+): OpenCommandSpec {
+  const absolutePath = toAbsolutePath(filePath);
+
+  switch (platform) {
+    case 'darwin':
+      return { command: 'open', args: [absolutePath] };
+    case 'win32':
+      // On Windows, 'start' is a cmd.exe built-in command; passing discrete args avoids shell injection
+      return { command: 'cmd.exe', args: ['/c', 'start', '""', absolutePath] };
+    default:
+      // Linux, FreeBSD, SunOS, etc.
+      return { command: 'xdg-open', args: [absolutePath] };
+  }
+}
+
+export function openInBrowser(
+  filePath: string,
+  platform: NodeJS.Platform = process.platform,
+  spawnImpl: (command: string, args: string[], options?: object) => ChildProcess = spawn
+): ChildProcess | undefined {
+  const spec = getOpenCommand(filePath, platform);
+  try {
+    const child = spawnImpl(spec.command, spec.args, {
+      detached: true,
+      stdio: 'ignore',
+    });
+    if (child && typeof child.unref === 'function') {
+      child.unref();
+    }
+    if (child && typeof child.on === 'function') {
+      child.on('error', () => {
+        // Prevent unhandled error event if the browser or binary is not found
+      });
+    }
+    return child;
+  } catch {
+    return undefined;
+  }
+}</code></pre>
+      <div class="callout success">
+        <div class="callout-title">🛡️ Security &amp; Cross-Platform Guarantees:</div>
+        <ul>
+          <li><strong>Zero Shell Interpolation:</strong> By passing discrete string arrays to <code>spawn()</code> without <code>shell: true</code>, arguments containing shell characters (like <code>; rm -rf /</code> or <code>$(whoami)</code>) are treated as literal file paths by the operating system kernel.</li>
+          <li><strong>Process Detachment (<code>child.unref()</code>):</strong> The CLI process does not hang waiting for the browser tab to close; it exits cleanly immediately.</li>
+          <li><strong>Windows Drive Path Regex:</strong> <code>/^[a-zA-Z]:[\/]/</code> recognizes Windows drive paths (such as <code>C:eportsaudit.html</code>) even when the test runner is executing on macOS or Linux, preventing accidental prepending of <code>/Users/...</code>.</li>
+        </ul>
+      </div>
+
+      <h3>3.4 Secure HTML Report Generator: <code>src/report/html-report.ts</code></h3>
+      <p>
+        The HTML report is a standalone, self-contained file with embedded styles and interactive client-side JSON export:
+      </p>
+      <pre><code>export function escapeHtml(unsafe: unknown): string {
+  if (unsafe === null || unsafe === undefined) {
+    return '';
+  }
+  const str = String(unsafe);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const severityBadgeClass: Record<string, string> = {
+  CRITICAL: 'badge-critical',
+  HIGH: 'badge-high',
+  MEDIUM: 'badge-medium',
+  LOW: 'badge-low',
+  INFO: 'badge-info',
+};
+
+const severityBorderClass: Record<string, string> = {
+  CRITICAL: 'border-critical',
+  HIGH: 'border-high',
+  MEDIUM: 'border-medium',
+  LOW: 'border-low',
+  INFO: 'border-info',
+};</code></pre>
+      <div class="callout warning">
+        <div class="callout-title">🔒 Protection Against Attribute Breakout (Commit 839a0fa):</div>
+        <p>
+          Earlier code dynamically interpolated <code>badge-${finding.severity.toLowerCase()}</code>. If a malicious or malformed finding contained <code>CRITICAL" onfocus="alert(1)</code>, it could break out of the HTML attribute. In commit <code>839a0fa</code>, we replaced dynamic string interpolation with strict lookup maps (<code>severityBadgeClass[finding.severity] || 'badge-info'</code>), guaranteeing that only trusted CSS class names are ever emitted into DOM attributes.
+        </p>
+      </div>
+
+      <h3>3.5 Init Command: <code>src/cli/commands/init.command.ts</code></h3>
+      <p>
+        The init command generates a default <code>.repoguard/config.json</code> configuration file:
+      </p>
+      <pre><code>export function extractProjectName(cwdPath: string): string {
+  const normalized = resolve(cwdPath).replace(/\/g, '/');
+  const name = basename(normalized);
+  return name && name !== '.' && name !== '/' ? name : 'repoguard-project';
+}
+
+export function registerInitCommand(program: Command): void {
+  program
+    .command('init')
+    .description('Initialize .repoguard configuration file in current repository')
+    .option('-f, --force', 'Overwrite existing configuration file if it already exists')
+    .action(async (_options: InitCommandOptions, cmd: Command) => {
+      const options = cmd.optsWithGlobals<InitCommandOptions>();
+      const cwd = process.cwd();
+      const repoguardDir = resolve(cwd, '.repoguard');
+      const configPath = join(repoguardDir, 'config.json');
+      // ...</code></pre>
+      <p>
+        <code>extractProjectName()</code> handles both POSIX and Windows backslash paths safely by normalizing slashes before calling <code>basename()</code>.
+      </p>
+    </section>
+
+    <!-- CHAPTER 4 -->
+    <section id="ch4">
+      <h2><span class="section-tag">CH 04</span> CLI Commands &amp; Options Reference</h2>
+
+      <h3>4.1 Global Options</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Interaction with Commands</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>-c, --config &lt;path&gt;</code></td>
+            <td>String</td>
+            <td>Path to custom configuration file</td>
+            <td>Overrides default <code>.repoguard/config.json</code> cascading resolution.</td>
+          </tr>
+          <tr>
+            <td><code>--json</code></td>
+            <td>Boolean</td>
+            <td>Force machine-readable JSON on stdout</td>
+            <td>Suppresses ASCII banner, progress steps, and summary table across all commands.</td>
+          </tr>
+          <tr>
+            <td><code>--no-color</code></td>
+            <td>Boolean</td>
+            <td>Disable ANSI color escape sequences</td>
+            <td>Chalk automatically respects this flag for plain log environments.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>4.2 <code>repoguard init</code></h3>
+      <p><strong>Syntax:</strong> <code>repoguard init [options]</code></p>
+      <div class="terminal-window">
+        <div class="terminal-bar">
+          <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
+          <span class="terminal-title">bash — repoguard init</span>
+        </div>
+        <div class="terminal-body">$ repoguard init
+✔ RepoGuard initialized! Configuration saved to /workspace/my-api/.repoguard/config.json
+  Run repoguard scan to begin auditing your codebase.</div>
+      </div>
+
+      <h3>4.3 <code>repoguard scan</code></h3>
+      <p><strong>Syntax:</strong> <code>repoguard scan [targetDir] [options]</code></p>
+      <table>
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>--format &lt;format&gt;</code></td>
+            <td><code>summary</code></td>
+            <td>Output format: <code>summary</code>, <code>json</code>, <code>html</code>, <code>markdown</code>.</td>
+          </tr>
+          <tr>
+            <td><code>--output-dir &lt;path&gt;</code></td>
+            <td><code>.repoguard/reports</code></td>
+            <td>Custom output directory for generated reports.</td>
+          </tr>
+          <tr>
+            <td><code>--open</code></td>
+            <td><code>false</code></td>
+            <td>Automatically launches the generated HTML report in the default browser.</td>
+          </tr>
+          <tr>
+            <td><code>-t, --timeout &lt;ms&gt;</code></td>
+            <td><code>30000</code></td>
+            <td>Verification timeout in milliseconds.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Interaction Matrix: <code>--format</code> vs <code>--json</code></h4>
+      <table>
+        <thead>
+          <tr>
+            <th>CLI Invocation</th>
+            <th>Stdout Output</th>
+            <th>Reports Created on Disk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>repoguard scan</code> (default)</td>
+            <td>Banner + Progress steps + Audit summary table</td>
+            <td><code>.html</code> and <code>.md</code> reports</td>
+          </tr>
+          <tr>
+            <td><code>repoguard scan --format html</code></td>
+            <td>Banner + Summary table + HTML file URI link</td>
+            <td><strong>Only</strong> <code>.html</code> report</td>
+          </tr>
+          <tr>
+            <td><code>repoguard scan --format markdown</code></td>
+            <td>Banner + Summary table + Markdown path</td>
+            <td><strong>Only</strong> <code>.md</code> report</td>
+          </tr>
+          <tr>
+            <td><code>repoguard scan --format json</code></td>
+            <td>Clean parseable JSON (Banner suppressed)</td>
+            <td><strong>Only</strong> <code>.json</code> report</td>
+          </tr>
+          <tr>
+            <td><code>repoguard scan --format html --json</code></td>
+            <td>Clean parseable JSON on stdout</td>
+            <td><strong>Only</strong> <code>.html</code> report on disk</td>
+          </tr>
+          <tr>
+            <td><code>repoguard scan --format invalid</code></td>
+            <td>Error message on stderr, <code>exitCode = 1</code></td>
+            <td>None</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>4.4 <code>repoguard status</code></h3>
+      <p><strong>Syntax:</strong> <code>repoguard status [options]</code></p>
+      <div class="terminal-window">
+        <div class="terminal-bar"><span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span><span class="terminal-title">bash — repoguard status</span></div>
+        <div class="terminal-body">$ repoguard status --history
+🛡️  RepoGuard Repository Status
+─────────────────────────────────────────────
+  Last Run ID:       run-20261013-4k91a
+  Last Scanned:      2026-10-13T12:00:00.000Z
+  Total Scans Run:   4
+  Files Scanned:     42
+  Active Findings:   0 (Clean)
+
+📜 Recent Scans History:
+  1. [2026-10-13] run-20261013-4k91a — Clean
+  2. [2026-10-13] run-20261013-1b22x — Clean</div>
+      </div>
+
+      <h3>4.5 <code>repoguard report</code></h3>
+      <p><strong>Syntax:</strong> <code>repoguard report [runId] [--format &lt;fmt&gt;] [--open]</code></p>
+      <p>
+        Retrieves a previously executed scan record from <code>RunStore</code> and re-exports or launches it in the browser without re-running the full file scan.
+      </p>
+    </section>
+
+    <!-- CHAPTER 5 -->
+    <section id="ch5">
+      <h2><span class="section-tag">CH 05</span> Core Technical Concepts</h2>
+
+      <div class="card">
+        <div class="card-title">1. Node.js ECMAScript Modules (ESM)</div>
+        <p>
+          RepoGuard declares <code>"type": "module"</code> in <code>package.json</code>. This enables standard <code>import/export</code> syntax, top-level await, and requires explicit <code>.js</code> file extensions in relative imports (e.g. <code>import { formatError } from '../formatter.js';</code>).
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">2. TypeScript 5.8 &amp; Strict Typings</div>
+        <p>
+          Configured with <code>"strict": true</code> in <code>tsconfig.json</code>. We use <code>as const</code> assertions on tuple definitions (e.g. <code>VALID_SCAN_FORMATS = ['summary', 'json', 'html', 'markdown'] as const</code>) to derive exact string literal union types automatically: <code>type ScanOutputFormat = (typeof VALID_SCAN_FORMATS)[number]</code>.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">3. Commander.js &amp; <code>optsWithGlobals()</code></div>
+        <p>
+          In Commander.js v13, calling <code>cmd.opts()</code> inside an action handler only returns options defined on that specific subcommand. When flags like <code>--json</code> or <code>--config</code> are defined on the parent program, calling <code>cmd.optsWithGlobals&lt;T&gt;()</code> is required to merge global options with command-specific options into a single typed object.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">4. Non-Terminating Exit Codes (<code>process.exitCode = 1</code>)</div>
+        <p>
+          Rather than calling <code>process.exit(1)</code> directly, RepoGuard assigns <code>process.exitCode = 1</code>. This allows pending asynchronous I/O and standard streams (stdout/stderr) to drain completely before the Node.js event loop terminates, and enables unit test runners (Vitest) to verify failures without having the test process forcibly killed.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">5. XSS Defense &amp; Safe HTML Escaping</div>
+        <p>
+          User code and file paths are inherently untrusted. The <code>escapeHtml()</code> utility neutralizes dangerous characters (<code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>, <code>'</code>) into their corresponding HTML entity equivalents. Furthermore, CSS class interpolation uses whitelist lookup maps to prevent attribute breakout.
+        </p>
+      </div>
+    </section>
+
+    <!-- CHAPTER 6 -->
+    <section id="ch6">
+      <h2><span class="section-tag">CH 06</span> Bug Fixes &amp; Implementation Decisions</h2>
+      <p>
+        The following 9 commits on branch <code>feature/cli-improvements</code> represent the evolution of our CLI implementation:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Commit</th>
+            <th>Type / Message</th>
+            <th>Problem &amp; Vulnerability Addressed</th>
+            <th>Files Changed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>36aa49b</code></td>
+            <td><code>fix(cli): safely launch report files</code></td>
+            <td>Prevented shell injection by eliminating string-based <code>exec</code>; introduced argument-based <code>spawn</code> in <code>openInBrowser</code> with cross-platform support.</td>
+            <td><code>src/cli/formatter.ts</code>, <code>tests/unit/cli/formatter.test.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>23b4f86</code></td>
+            <td><code>feat(cli): implement CLI entry point</code></td>
+            <td>Initialized Commander program structure, root options, and command registration.</td>
+            <td><code>src/cli/cli.ts</code>, <code>src/cli/index.ts</code>, <code>src/cli/options.ts</code>, <code>src/index.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>5e46787</code></td>
+            <td><code>feat(cli): implement init command</code></td>
+            <td>Implemented <code>repoguard init</code> to write default configuration with project name discovery.</td>
+            <td><code>src/cli/commands/init.command.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>85ee74d</code></td>
+            <td><code>test(cli): cover init command behavior</code></td>
+            <td>Added E2E tests for config initialization and <code>--force</code> overwrite protection.</td>
+            <td><code>tests/e2e/init-command.test.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>ac937d5</code></td>
+            <td><code>feat(report): enhance HTML report styling and JSON export</code></td>
+            <td>Added dark theme CSS, responsive grid, and client-side JSON export button.</td>
+            <td><code>src/report/html-report.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>1f35ca3</code></td>
+            <td><code>feat(cli): implement scan, status, and report commands</code></td>
+            <td>Implemented remaining core CLI command handlers and persistent state integration.</td>
+            <td><code>src/cli/commands/scan.command.ts</code>, <code>status.command.ts</code>, <code>report.command.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>0ea5540</code></td>
+            <td><code>test(cli): cover scan and status command execution</code></td>
+            <td>Added E2E test coverage for scan persistence and status reporting.</td>
+            <td><code>tests/e2e/scan-command.test.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>839a0fa</code></td>
+            <td><code>fix(cli): correct global options and harden report rendering</code></td>
+            <td>Fixed <code>optsWithGlobals()</code> inheritance, normalized project name with <code>basename(resolve(cwd))</code>, whitelisted severity badge CSS classes, and cleaned up JSON stdout.</td>
+            <td>9 files across <code>src/cli/</code>, <code>src/report/</code>, and <code>tests/</code></td>
+          </tr>
+          <tr>
+            <td><code>6f16e50</code></td>
+            <td><code>fix(cli): honor scan output format options</code></td>
+            <td>Fixed bug where <code>--format</code> was accepted but ignored by <code>scan</code>; added strict validation, format-to-disk mapping, and suppressed banner in <code>--format json</code>.</td>
+            <td><code>src/cli/cli.ts</code>, <code>src/cli/commands/scan.command.ts</code>, <code>tests/e2e/scan-command.test.ts</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CHAPTER 7 -->
+    <section id="ch7">
+      <h2><span class="section-tag">CH 07</span> Git &amp; GitHub — Complete Workflow</h2>
+
+      <h3>7.1 Core Git Commands Used</h3>
+      <ul>
+        <li><code>git status --short</code>: Quickly displays unstaged and staged modifications.</li>
+        <li><code>git branch -a</code>: Lists all local and remote tracking branches.</li>
+        <li><code>git switch -c feature/cli-improvements</code>: Creates and switches to a new feature branch cleanly.</li>
+        <li><code>git add -p / git add &lt;files&gt;</code>: Stages specific files for reviewable commits.</li>
+        <li><code>git commit -m "feat(...): ..."</code>: Commits staged changes adhering to Conventional Commits standard.</li>
+        <li><code>git diff --check</code>: Checks for trailing whitespace or broken carriage returns before committing.</li>
+        <li><code>git log --oneline -n 10</code>: Displays a concise linear view of recent commits.</li>
+      </ul>
+
+      <h3>7.2 Git Concepts Explained</h3>
+      <div class="card">
+        <p><strong>HEAD:</strong> A pointer to the currently checked-out commit or branch in your working directory.</p>
+        <p><strong>origin:</strong> The default alias for the remote Git repository hosted on GitHub (<code>https://github.com/Pratham707-S/repoguard.git</code>).</p>
+        <p><strong>Feature Branching:</strong> Developing changes in isolated branches prevents untested or broken code from destabilizing the <code>main</code> branch, enabling code reviews and automated CI runs.</p>
+      </div>
+
+      <div class="diagram-container">
+        <!-- Git Workflow SVG -->
+        <svg width="780" height="200" viewBox="0 0 780 200" xmlns="http://www.w3.org/2000/svg">
+          <rect width="780" height="200" rx="8" fill="#090d16" stroke="#1e293b" />
+          
+          <!-- Main branch line -->
+          <line x1="50" y1="60" x2="730" y2="60" stroke="#10b981" stroke-width="3" />
+          <circle cx="100" cy="60" r="10" fill="#10b981" />
+          <text x="100" y="40" fill="#10b981" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">db76f79 (main)</text>
+
+          <!-- Branch fork -->
+          <path d="M 100 60 Q 150 140 200 140" fill="none" stroke="#38bdf8" stroke-width="2.5" />
+          <line x1="200" y1="140" x2="600" y2="140" stroke="#38bdf8" stroke-width="2.5" />
+
+          <!-- Commits on feature branch -->
+          <circle cx="230" cy="140" r="7" fill="#38bdf8" />
+          <circle cx="310" cy="140" r="7" fill="#38bdf8" />
+          <circle cx="390" cy="140" r="7" fill="#38bdf8" />
+          <circle cx="470" cy="140" r="7" fill="#38bdf8" />
+          <circle cx="550" cy="140" r="7" fill="#38bdf8" />
+          <text x="390" y="170" fill="#38bdf8" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">feature/cli-improvements (9 commits)</text>
+
+          <!-- Pull Request merge back -->
+          <path d="M 550 140 Q 620 140 660 60" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-dasharray="4" />
+          <circle cx="660" cy="60" r="10" fill="#a855f7" />
+          <text x="660" y="40" fill="#a855f7" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">PR #4 Target</text>
+        </svg>
+        <span class="diagram-caption">Figure 7.1: Feature Branch Isolation and PR #4 Merge Path</span>
+      </div>
+    </section>
+
+    <!-- CHAPTER 8 -->
+    <section id="ch8">
+      <h2><span class="section-tag">CH 08</span> Pull Request #4 Case Study</h2>
+      <div class="card">
+        <div class="card-title">Pull Request Summary: PR #4</div>
+        <p><strong>Title:</strong> <code>feat(cli): complete CLI improvements, browser security, and reporting suite</code></p>
+        <p><strong>Base Branch:</strong> <code>main</code> (at commit <code>db76f79</code>)</p>
+        <p><strong>Head Branch:</strong> <code>feature/cli-improvements</code> (9 commits)</p>
+        <p><strong>Net Changes:</strong> 14 changed files (+1544 insertions, -111 deletions)</p>
+      </div>
+
+      <h3>8.1 What Merging PR #4 Proved</h3>
+      <ul>
+        <li>✅ The CLI entry point and subcommands (<code>init</code>, <code>scan</code>, <code>status</code>, <code>report</code>) execute without crashes and adhere to documented syntax.</li>
+        <li>✅ The browser launching utility does not execute shell strings and is safe from command injection.</li>
+        <li>✅ The reporting engine correctly generates HTML, Markdown, and JSON files and sanitizes user input against XSS.</li>
+        <li>✅ All 77 unit and E2E tests pass, and TypeScript builds cleanly without errors.</li>
+      </ul>
+
+      <h3>8.2 What Merging PR #4 Did NOT Prove</h3>
+      <ul>
+        <li>❌ It did <strong>not</strong> prove that RepoGuard can discover real software security vulnerabilities (the analysis engine remains a stub).</li>
+        <li>❌ It did <strong>not</strong> prove that secrets are redacted from source code before AI analysis (the redactor is a stub).</li>
+        <li>❌ It did <strong>not</strong> verify Docker container sandboxing on end-user machines.</li>
+      </ul>
+    </section>
+
+    <!-- CHAPTER 9 -->
+    <section id="ch9">
+      <h2><span class="section-tag">CH 09</span> Testing &amp; Quality Assurance</h2>
+
+      <h3>9.1 Real Test Suite Breakdown</h3>
+      <p>
+        Executed using Vitest 3.0.7 across 15 collected test files:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Test File</th>
+            <th>Type</th>
+            <th>Passed Tests</th>
+            <th>Key Behaviors Covered</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tests/unit/cli/formatter.test.ts</code></td>
+            <td>Unit</td>
+            <td>11 / 11</td>
+            <td>Shell injection blocking, Windows drive paths (<code>C:...</code>), banner rendering, table formatting.</td>
+          </tr>
+          <tr>
+            <td><code>tests/unit/config/loader.test.ts</code></td>
+            <td>Unit</td>
+            <td>12 / 12</td>
+            <td>Default fallback, custom config loading, env variable precedence.</td>
+          </tr>
+          <tr>
+            <td><code>tests/unit/config/schema.test.ts</code></td>
+            <td>Unit</td>
+            <td>6 / 6</td>
+            <td>Zod schema validation, invalid property rejection.</td>
+          </tr>
+          <tr>
+            <td><code>tests/unit/storage/storage.test.ts</code></td>
+            <td>Unit</td>
+            <td>10 / 10</td>
+            <td>Run persistence, run retrieval, history list slicing.</td>
+          </tr>
+          <tr>
+            <td><code>tests/unit/report/report.test.ts</code></td>
+            <td>Unit</td>
+            <td>12 / 12</td>
+            <td>HTML escaping (<code>&lt;script&gt;</code>, <code>&lt;img&gt;</code>), severity class whitelisting, ReportBuilder export.</td>
+          </tr>
+          <tr>
+            <td><code>tests/integration/config-loading.test.ts</code></td>
+            <td>Integration</td>
+            <td>14 / 14</td>
+            <td>Cascading configuration resolution across file systems and overrides.</td>
+          </tr>
+          <tr>
+            <td><code>tests/e2e/init-command.test.ts</code></td>
+            <td>E2E</td>
+            <td>3 / 3</td>
+            <td>Config creation, <code>--force</code> overwrite check, project name extraction on Windows & POSIX.</td>
+          </tr>
+          <tr>
+            <td><code>tests/e2e/scan-command.test.ts</code></td>
+            <td>E2E</td>
+            <td>9 / 9</td>
+            <td>Scan execution, <code>--format</code> behavior (html, markdown, json, summary), invalid format rejection, clean JSON stdout.</td>
+          </tr>
+          <tr>
+            <td><strong>Remaining 7 stub test files</strong></td>
+            <td>Stubs</td>
+            <td>0 tests</td>
+            <td>Queued for future milestones (security redactor, repair verification, pipeline).</td>
+          </tr>
+          <tr>
+            <td><strong>TOTAL VERIFIED SUITE</strong></td>
+            <td><strong>All</strong></td>
+            <td><strong>77 / 77 (100%)</strong></td>
+            <td><strong>Exit Code: 0 (All Passing)</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>9.2 QA Verification Commands</h3>
+      <div class="terminal-window">
+        <div class="terminal-bar"><span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span><span class="terminal-title">Verification Commands</span></div>
+        <div class="terminal-body">$ npm test               # Runs Vitest unit & E2E suites (77/77 pass)
+$ npm run typecheck      # Runs tsc --noEmit (0 type errors)
+$ npm run lint           # Runs eslint src tests (0 warnings/errors)
+$ npm run build          # Compiles to ./dist using tsconfig.build.json
+$ git diff --check       # Verifies zero trailing whitespace issues</div>
+      </div>
+    </section>
+
+    <!-- CHAPTER 10 -->
+    <section id="ch10">
+      <h2><span class="section-tag">CH 10</span> Current Limitations &amp; Security Honesty</h2>
+      <div class="callout danger">
+        <div class="callout-title">⚠️ Mandatory Transparency Disclosure</div>
+        <p>
+          RepoGuard has a robust, production-grade CLI framework, configuration cascade, and reporting engine. However, the internal <strong>vulnerability analysis engine</strong> and <strong>secret redactor</strong> are currently stubs. In competitive presentations, hackathons, or code reviews, presenting these as fully functional AI security tools is factually incorrect.
+        </p>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Subsystem</th>
+            <th>Verification Status</th>
+            <th>Exact Code Reality</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Real Vulnerability Scanner</strong></td>
+            <td><span class="badge badge-stub">Stubbed / Placeholder</span></td>
+            <td><code>src/cli/commands/scan.command.ts</code> hardcodes <code>findingsCount: 0</code> and <code>findings: []</code>. No AST or static analysis engine is invoked.</td>
+          </tr>
+          <tr>
+            <td><strong>Secret Redaction Engine</strong></td>
+            <td><span class="badge badge-stub">Stubbed / Placeholder</span></td>
+            <td><code>src/context/secret-redactor.ts</code> contains only <code>export {};</code>. The terminal message "Secret redaction active: 100% tokens protected" is cosmetic progress output.</td>
+          </tr>
+          <tr>
+            <td><strong>Google Gemini LLM Adapter</strong></td>
+            <td><span class="badge badge-stub">Stubbed / Placeholder</span></td>
+            <td><code>src/providers/gemini-adapter.ts</code> contains <code>export {};</code> with milestone TODOs.</td>
+          </tr>
+          <tr>
+            <td><strong>Browser Launcher Safety</strong></td>
+            <td><span class="badge badge-verified">Implemented & Verified</span></td>
+            <td>Uses argument-based <code>spawn</code>. Fully verified by tests against shell metacharacters and command chaining.</td>
+          </tr>
+          <tr>
+            <td><strong>HTML Report XSS Sanitization</strong></td>
+            <td><span class="badge badge-verified">Implemented & Verified</span></td>
+            <td>Strict entity replacement and CSS class whitelist maps prevent script injection.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CHAPTER 11 -->
+    <section id="ch11">
+      <h2><span class="section-tag">CH 11</span> Team Collaboration Guide</h2>
+      <p>
+        Guidelines for teammates collaborating on the RepoGuard repository:
+      </p>
+
+      <h3>11.1 Safe Daily Workflow</h3>
+      <pre><code># 1. Fetch latest changes from remote
+git fetch origin
+
+# 2. Switch to main and pull latest verified code
+git switch main
+git pull origin main
+
+# 3. Create your new isolated feature branch
+git switch -c feature/my-new-module
+
+# 4. Make edits and run verification checks BEFORE committing
+npm run typecheck
+npm run lint
+npm test
+git diff --check
+
+# 5. Push branch to GitHub and open a Pull Request
+git push -u origin feature/my-new-module</code></pre>
+
+      <div class="callout danger">
+        <div class="callout-title">🚫 Commands to NEVER Run on Shared Branches:</div>
+        <ul>
+          <li><code>git push --force origin main</code>: Destroys commits on the shared branch.</li>
+          <li><code>git reset --hard HEAD~1</code> (after pushing): Creates divergent histories and breaks teammates' local clones.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CHAPTER 12 -->
+    <section id="ch12">
+      <h2><span class="section-tag">CH 12</span> Judge &amp; Interview Preparation</h2>
+
+      <h3>12.1 30-Second Elevator Pitch</h3>
+      <div class="callout">
+        <p>
+          "I engineered the CLI architecture and secure reporting foundation for RepoGuard, an autonomous code reliability platform. I built an argument-based, injection-proof browser launcher, a cascading configuration engine, and a multi-format reporting suite with strict XSS sanitization and exit-code discipline, backed by 77 automated tests."
+        </p>
+      </div>
+
+      <h3>12.2 2-Minute Technical Summary</h3>
+      <div class="callout">
+        <p>
+          "When we started RepoGuard, our goal was to build a CLI-first platform that audits repositories and creates verifiable fixes. My focus on branch <code>feature/cli-improvements</code> was hardening the user-facing CLI and reporting pipeline.
+          <br><br>
+          Specifically, I implemented Commander.js global option resolution using <code>optsWithGlobals()</code>, ensuring flags like <code>--json</code> cleanly suppress interactive ANSI banners for machine consumption. I eliminated a command-injection vulnerability in the report launcher by migrating from shell strings to discrete argument-based <code>spawn</code> across macOS, Linux, and Windows. In the HTML reporting engine, I built strict entity escaping and severity class whitelist lookups to prevent attribute injection. Every behavior is validated across 77 unit and E2E tests with zero linter or TypeScript errors."
+        </p>
+      </div>
+
+      <h3>12.3 20+ Technical Q&amp;A</h3>
+
+      <div class="qa-box">
+        <div class="qa-header">Q1: Why did you use Commander.js instead of yargs or parsing process.argv manually?</div>
+        <div class="qa-body">Commander.js v13 provides a declarative API for nested subcommands, automated <code>--help</code> generation, typed option parsing, and lifecycle hooks like <code>preAction</code> which allow us to conditionally render ASCII banners or suppress them for JSON mode.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q2: How does optsWithGlobals() work and why was it necessary?</div>
+        <div class="qa-body">In Commander, <code>cmd.opts()</code> only returns options declared directly on that subcommand. Because <code>--json</code> and <code>--config</code> are defined globally on the root program, subcommands like <code>scan</code> or <code>status</code> need <code>cmd.optsWithGlobals()</code> to inherit and merge both global and local flags.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q3: What was the shell injection vulnerability in openInBrowser() and how did you resolve it?</div>
+        <div class="qa-body">Using string concatenation with <code>child_process.exec(`open "${filePath}"`)</code> permits shell metacharacter injection (such as <code>; rm -rf /</code> or <code>$(calc)</code>). We resolved this by switching to <code>child_process.spawn()</code> with discrete string array arguments without invoking a shell.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q4: Why does getOpenCommand on Windows use cmd.exe /c start ""?</div>
+        <div class="qa-body">On Windows, <code>start</code> is not a standalone executable; it is an internal shell command of <code>cmd.exe</code>. The empty quote pair <code>""</code> is required because the Windows <code>start</code> command interprets the first quoted token as the window title.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q5: How does toAbsolutePath handle Windows drive letters on non-Windows operating systems?</div>
+        <div class="qa-body">Standard POSIX <code>path.isAbsolute('C:\test')</code> returns false on macOS/Linux and prepends <code>process.cwd()</code>. We added a regex check <code>/^[a-zA-Z]:[\/]/</code> to recognize Windows drive paths across all host platforms.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q6: Why use process.exitCode = 1 instead of process.exit(1)?</div>
+        <div class="qa-body"><code>process.exit()</code> terminates the process immediately, truncating stdout/stderr buffers and preventing asynchronous cleanup. Setting <code>process.exitCode = 1</code> lets the event loop drain naturally and allows test runners to assert on failure codes without dying.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q7: How did you prevent Cross-Site Scripting (XSS) in HTML reports?</div>
+        <div class="qa-body">We implemented <code>escapeHtml()</code> to convert <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>, and <code>'</code> into HTML entities. Furthermore, CSS class mapping uses predefined lookup objects rather than string interpolation, preventing attribute breakout attacks.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q8: How does --format interact with the global --json flag?</div>
+        <div class="qa-body"><code>--format</code> governs which artifact is saved to disk (HTML, Markdown, or JSON), while <code>--json</code> guarantees machine-readable JSON on stdout. For instance, <code>repoguard scan --format html --json</code> generates an HTML file on disk while printing clean JSON to stdout.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q9: What happens when an invalid format is passed to scan --format?</div>
+        <div class="qa-body">It validates the string against <code>VALID_SCAN_FORMATS</code>. If invalid, it logs a descriptive error message, sets <code>process.exitCode = 1</code>, and returns early without creating corrupted files.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q10: What is the purpose of the RunStore and StateStore classes?</div>
+        <div class="qa-body">They provide file-backed storage in <code>.repoguard/state/</code>. <code>RunStore</code> archives complete audit run records under unique IDs, while <code>StateStore</code> tracks repository status and the last run ID.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q11: How is configuration loaded in RepoGuard?</div>
+        <div class="qa-body">Via a cascading hierarchy: DEFAULT_CONFIG -> <code>.repoguard/config.json</code> -> Environment variables (<code>REPOGUARD_*</code>) -> CLI arguments (<code>--config</code>). All configurations are validated with Zod schemas.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q12: Does the current scan command detect real vulnerabilities?</div>
+        <div class="qa-body">No. As documented in our honesty matrix, the current scan command counts files and creates a clean scan record. The static analysis rules and AI orchestrator are currently stubs.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q13: Does the secret redactor actually redact tokens right now?</div>
+        <div class="qa-body">No. <code>src/context/secret-redactor.ts</code> is currently a stub. The progress step in the CLI terminal is cosmetic feedback planned for full integration in Milestone 2.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q14: What testing framework is used and why?</div>
+        <div class="qa-body">Vitest 3.0.7 is used because it provides native ESM and TypeScript support without requiring a compilation step, executes fast in-memory, and provides full Jest-compatible mocking APIs.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q15: How do your tests verify clean JSON stdout?</div>
+        <div class="qa-body">Tests spy on <code>console.log</code>, capture all output lines, join them, assert that the text contains no banner characters, and verify that <code>JSON.parse(output)</code> succeeds cleanly.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q16: What is git diff --check and why did you run it?</div>
+        <div class="qa-body"><code>git diff --check</code> scans staged and unstaged diffs for trailing whitespace and conflict marker artifacts, ensuring code quality before committing.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q17: Why use TypeScript interfaces instead of types for CLI options?</div>
+        <div class="qa-body">Interfaces support declaration merging and extension (e.g. <code>interface ScanCommandOptions extends GlobalCliOptions</code>), creating clean inheritance hierarchies for subcommand options.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q18: What is the purpose of child.unref() in openInBrowser?</div>
+        <div class="qa-body">It removes the spawned child process from the Node.js event loop reference count, allowing the parent CLI process to exit immediately without waiting for the browser to close.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q19: How does extractProjectName work across platforms?</div>
+        <div class="qa-body">It normalizes all backslashes to forward slashes with <code>.replace(/\/g, '/')</code> before calling <code>path.basename()</code>, ensuring proper project naming on both Windows and POSIX.</div>
+      </div>
+
+      <div class="qa-box">
+        <div class="qa-header">Q20: What is your next priority milestone for RepoGuard?</div>
+        <div class="qa-body">Connecting the CLI scan command to a real static analysis engine in <code>src/analysis/orchestrator.ts</code> and integrating regex-based secret redaction in <code>src/context/secret-redactor.ts</code>.</div>
+      </div>
+    </section>
+
+    <!-- CHAPTER 13 -->
+    <section id="ch13">
+      <h2><span class="section-tag">CH 13</span> Prioritized Technical Roadmap</h2>
+      
+      <div class="card">
+        <div class="card-title">Phase 1: Real Security Rules Engine (High Priority)</div>
+        <p>Implement regex and AST rules in <code>src/analysis/rules/</code> to detect hardcoded API keys, SQL injections, and command injection patterns, replacing synthesized 0-finding records with real detections.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Phase 2: True Secret Redactor Implementation</div>
+        <p>Implement high-entropy token detection and regex masking in <code>src/context/secret-redactor.ts</code>, ensuring code snippets sent to AI providers have sensitive tokens replaced with <code>[REDACTED_SECRET]</code>.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Phase 3: Live AI Provider Completion</div>
+        <p>Connect <code>src/providers/gemini-adapter.ts</code> to the Google Gemini API using structured JSON schema output to propose patches with confidence scoring.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Phase 4: Docker Containerized Sandbox Verification</div>
+        <p>Implement <code>src/verification/sandbox/docker-runner.ts</code> to apply patches and execute repository tests inside isolated containers, enforcing our "Verify before trust" core philosophy.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // Client-side search and active TOC highlighting
+    const searchInput = document.getElementById('nav-search');
+    const navLinks = document.querySelectorAll('.nav-link');
+
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      navLinks.forEach(link => {
+        const text = link.textContent.toLowerCase();
+        link.parentElement.style.display = text.includes(term) ? 'block' : 'none';
+      });
+    });
+
+    // Scroll spy
+    window.addEventListener('scroll', () => {
+      let currentSection = '';
+      const sections = document.querySelectorAll('section');
+      const scrollPos = window.scrollY + 200;
+
+      sections.forEach(sec => {
+        if (sec.offsetTop <= scrollPos) {
+          currentSection = sec.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + currentSection) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -3,12 +3,12 @@
  *
  * Path: src/cli/formatter.ts
  * Owner: Team Lead
- * Purpose: CLI formatting: unified terminal colors, animated startup effects, tables, and progress indicators
+ * Purpose: Terminal UI formatting, ASCII banner, spinners, progress bars, and secure browser launching
  */
 
-import chalk from 'chalk';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve, posix, win32 } from 'node:path';
+import chalk from 'chalk';
 
 export interface BannerOptions {
   animated?: boolean;
@@ -19,6 +19,16 @@ export interface BannerOptions {
 export interface OpenCommandSpec {
   command: string;
   args: string[];
+}
+
+export interface ProgressBarOptions {
+  width?: number;
+  showPercent?: boolean;
+}
+
+export interface SpinnerOptions {
+  stream?: NodeJS.WriteStream;
+  interactive?: boolean;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -103,15 +113,32 @@ export function formatFileUri(filePath: string): string {
 }
 
 /**
- * Returns the static modern Cyberpunk / Neon badge string for RepoGuard.
+ * Returns a sleek, stylized ASCII banner for RepoGuard.
  */
 export function getStaticBanner(version: string = '0.1.0'): string {
-  const borderTop = chalk.cyan('╭─────────────────────────────────────────────────────────────╮');
-  const borderBottom = chalk.cyan('╰─────────────────────────────────────────────────────────────╯');
-  const titleLine = `${chalk.cyan('│')}  ${chalk.bold.hex('#38bdf8')('🛡️  R E P O G U A R D')}  ${chalk.dim(`v${version}`)}      ${chalk.green.bold('● ENGINE INITIALIZED')}  ${chalk.cyan('│')}`;
-  const subLine = `${chalk.cyan('│')}  ${chalk.yellow('⚡')}  ${chalk.white('Fix with evidence. Verify before trust.')}                ${chalk.cyan('│')}`;
+  const isColorDisabled = Boolean(process.env['NO_COLOR'] || process.argv.includes('--no-color'));
+  const logo = [
+    '  _____  ______ _____   ____   _____ _    _          _____  _____  ',
+    ' |  __ \\|  ____|  __ \\ / __ \\ / ____| |  | |   /\\   |  __ \\|  __ \\ ',
+    ' | |__) | |__  | |__) | |  | | |  __| |  | |  /  \\  | |__) | |  | |',
+    ' |  _  /|  __| |  ___/| |  | | | |_ | |  | | / /\\ \\ |  _  /| |  | |',
+    ' | | \\ \\| |____| |    | |__| | |__| | |__| |/ ____ \\| | \\ \\| |__| |',
+    ' |_|  \\_\\______|_|     \\____/ \\_____|\\____//_/    \\_\\_|  \\_\\_____/ ',
+  ]
+    .map((l) => (isColorDisabled ? l : chalk.cyan(l)))
+    .join('\n');
 
-  return [borderTop, titleLine, subLine, borderBottom].join('\n');
+  const border = '─'.repeat(67);
+  const borderTop = isColorDisabled ? `╭${border}╮` : chalk.cyan(`╭${border}╮`);
+  const borderBottom = isColorDisabled ? `╰${border}╯` : chalk.cyan(`╰${border}╯`);
+  const titleLine = isColorDisabled
+    ? `│  🛡️  R E P O G U A R D  v${version}       ● ENGINE INITIALIZED            │`
+    : `${chalk.cyan('│')}  ${chalk.bold.hex('#38bdf8')('🛡️  R E P O G U A R D')}  ${chalk.dim(`v${version}`)}      ${chalk.green.bold('● ENGINE INITIALIZED')}  ${chalk.cyan('│')}`;
+  const subLine = isColorDisabled
+    ? `│  ⚡  Fix with evidence. Verify before trust.                        │`
+    : `${chalk.cyan('│')}  ${chalk.yellow('⚡')}  ${chalk.white('Fix with evidence. Verify before trust.')}                ${chalk.cyan('│')}`;
+
+  return `${logo}\n${borderTop}\n${titleLine}\n${subLine}\n${borderBottom}`;
 }
 
 /**
@@ -194,10 +221,183 @@ export function formatWarning(message: string): string {
 }
 
 /**
- * Formats an error message with red cross.
+ * Formats an informational message with blue info icon.
  */
-export function formatError(message: string): string {
-  return `${chalk.red.bold('✖')} ${chalk.red(message)}`;
+export function formatInfo(message: string): string {
+  return `${chalk.blue.bold('ℹ')} ${chalk.white(message)}`;
+}
+
+/**
+ * Formats an error message with red cross and optional remediation tip.
+ */
+export function formatError(message: string, tip?: string): string {
+  const main = `${chalk.red.bold('✖')} ${chalk.red(message)}`;
+  if (tip) {
+    return `${main}\n  ${chalk.dim('💡 Tip:')} ${chalk.cyan(tip)}`;
+  }
+  return main;
+}
+
+/**
+ * Formats an in-terminal progress bar with percentage.
+ */
+export function formatProgressBar(
+  current: number,
+  total: number,
+  options: ProgressBarOptions = {}
+): string {
+  const width = options.width || 12;
+  const showPercent = options.showPercent !== false;
+  const safeTotal = total > 0 ? total : 1;
+  const safeCurrent = Math.min(Math.max(current, 0), safeTotal);
+  const ratio = safeCurrent / safeTotal;
+  const filled = Math.round(width * ratio);
+  const empty = width - filled;
+
+  const bar = `${chalk.cyan('█'.repeat(filled))}${chalk.dim('░'.repeat(empty))}`;
+  const percent = `${Math.round(ratio * 100)}%`.padStart(4, ' ');
+
+  return showPercent ? `[${bar}] ${chalk.bold(percent)}` : `[${bar}]`;
+}
+
+/**
+ * Lightweight, zero-dependency terminal spinner for long-running CLI operations.
+ * Automatically switches to clean non-animated output in non-interactive/CI/test environments.
+ */
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+export class Spinner {
+  private message: string;
+  private stream: NodeJS.WriteStream;
+  private isInteractive: boolean;
+  private frameIndex: number = 0;
+  private timer: NodeJS.Timeout | null = null;
+  private active: boolean = false;
+
+  constructor(text: string = '', options: SpinnerOptions = {}) {
+    this.message = text;
+    this.stream = options.stream || process.stderr;
+    this.isInteractive =
+      options.interactive !== undefined
+        ? options.interactive
+        : Boolean(
+            this.stream.isTTY &&
+            process.env['CI'] !== 'true' &&
+            process.env['NODE_ENV'] !== 'test'
+          );
+  }
+
+  start(text?: string): this {
+    if (text) this.message = text;
+    if (this.active) return this;
+    this.active = true;
+
+    if (!this.isInteractive) {
+      return this;
+    }
+
+    // Hide cursor during interactive animation
+    this.stream.write('\x1b[?25l');
+    this.render();
+
+    this.timer = setInterval(() => {
+      this.frameIndex = (this.frameIndex + 1) % SPINNER_FRAMES.length;
+      this.render();
+    }, 80);
+    this.timer.unref();
+
+    return this;
+  }
+
+  update(text: string): this {
+    this.message = text;
+    if (this.isInteractive && this.active) {
+      this.render();
+    }
+    return this;
+  }
+
+  private render(): void {
+    if (!this.isInteractive) return;
+    const frame = chalk.cyan(SPINNER_FRAMES[this.frameIndex]);
+    this.stream.write(`\r\x1b[K${frame} ${this.message}`);
+  }
+
+  private clearLine(): void {
+    if (this.isInteractive) {
+      this.stream.write('\r\x1b[K');
+      // Restore cursor
+      this.stream.write('\x1b[?25h');
+    }
+  }
+
+  stop(): this {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    if (this.active) {
+      this.clearLine();
+      this.active = false;
+    }
+    return this;
+  }
+
+  succeed(text?: string): this {
+    this.stop();
+    const msg = text || this.message;
+    if (msg) {
+      if (msg.startsWith('[') || msg.includes('✔') || msg.includes('✖')) {
+        console.log(msg);
+      } else {
+        console.log(formatSuccess(msg));
+      }
+    }
+    return this;
+  }
+
+  fail(text?: string): this {
+    this.stop();
+    const msg = text || this.message;
+    if (msg) {
+      if (msg.startsWith('[') || msg.includes('✔') || msg.includes('✖')) {
+        console.log(msg);
+      } else {
+        console.log(formatError(msg));
+      }
+    }
+    return this;
+  }
+
+  warn(text?: string): this {
+    this.stop();
+    const msg = text || this.message;
+    if (msg) {
+      if (msg.startsWith('[') || msg.includes('✔') || msg.includes('✖')) {
+        console.log(msg);
+      } else {
+        console.log(formatWarning(msg));
+      }
+    }
+    return this;
+  }
+
+  info(text?: string): this {
+    this.stop();
+    const msg = text || this.message;
+    if (msg) {
+      if (msg.startsWith('[') || msg.includes('✔') || msg.includes('✖')) {
+        console.log(msg);
+      } else {
+        console.log(formatInfo(msg));
+      }
+    }
+    return this;
+  }
+}
+
+export function createSpinner(text: string = '', options: SpinnerOptions = {}): Spinner {
+  return new Spinner(text, options);
 }
 
 /**
