@@ -76,20 +76,20 @@ flowchart LR
 For hackathon evaluators testing the CLI workflow:
 
 ```bash
-# 1. Run safe repository scan and inventory supported files
+# 1. Launch Interactive Mode with animated ASCII branding and guided menu
+npx repoguard
+
+# 2. Run safe repository scan, secret redaction, and multi-pass analysis
 npx repoguard scan
 
-# 2. Inspect high-signal findings backed by verified line-level code evidence
-npx repoguard review
+# 3. View previous scan summary, active findings, and empirical statistics
+npx repoguard status
 
-# 3. Generate a targeted unified diff patch tied to a specific finding
-npx repoguard fix FINDING-001
+# 4. Generate structured HTML and Markdown audit reports
+npx repoguard report --format html
 
-# 4. Execute allowlisted checks inside a temporary verification sandbox
-npx repoguard test REPAIR-001
-
-# 5. Output a structured, evidence-backed audit report
-npx repoguard status SCAN-001
+# 5. Initialize a custom repoguard.config.json configuration
+npx repoguard init
 ```
 
 ---

@@ -1,0 +1,31 @@
+# Source code & build configs (compiled code in dist/ is shipped)
+src/
+tests/
+benchmarks/
+scripts/
+docs/
+examples/
+.github/
+
+# Development configurations
+tsconfig.json
+tsconfig.build.json
+vitest.config.ts
+eslint.config.js
+.oxlintrc.json
+.prettierrc.json
+.editorconfig
+.npmrc
+.nvmrc
+
+# State, cache, logs & environments
+.repoguard/
+.env
+.env.*
+*.log
+coverage/
+.DS_Store
+
+# Git
+.git/
+.gitignore
