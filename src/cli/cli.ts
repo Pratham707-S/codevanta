@@ -13,7 +13,9 @@ import { registerScanCommand } from './commands/scan.command.js';
 import { registerReportCommand } from './commands/report.command.js';
 import { registerStatusCommand } from './commands/status.command.js';
 
-export function createCliProgram(version: string = '0.1.0'): Command {
+import { runInteractiveMode } from './interactive.js';
+
+export function createCliProgram(version: string = '0.1.2'): Command {
   const program = new Command('repoguard');
 
   program
@@ -43,6 +45,31 @@ export function createCliProgram(version: string = '0.1.0'): Command {
 }
 
 export async function runCli(argv: string[] = process.argv): Promise<void> {
-  const program = createCliProgram('0.1.0');
+  const version = '0.1.2';
+  const args = argv.slice(2);
+  const program = createCliProgram(version);
+
+  // Mode 1: Interactive Mode
+  // If no arguments (or only --no-color flag) are passed, check for interactive TTY
+  const isNoColorOnly = args.length === 1 && (args[0] === '--no-color' || args[0] === '--no-colors');
+  if (args.length === 0 || isNoColorOnly) {
+    const isInteractive = Boolean(
+      process.stdout.isTTY &&
+      process.stdin.isTTY &&
+      process.env['CI'] !== 'true' &&
+      process.env['NODE_ENV'] !== 'test'
+    );
+
+    if (isInteractive) {
+      await runInteractiveMode({ version, program });
+      return;
+    }
+
+    // In non-interactive terminals or CI environments, never block: output help cleanly
+    program.outputHelp();
+    return;
+  }
+
+  // Mode 2: Manual / Direct Mode
   await program.parseAsync(argv);
 }

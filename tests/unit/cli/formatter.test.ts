@@ -3,7 +3,7 @@
  *
  * Path: tests/unit/cli/formatter.test.ts
  * Owner: Team Lead
- * Purpose: Unit tests for CLI terminal formatting, animated banner effects, and secure browser launching
+ * Purpose: Unit tests for CLI terminal formatting, animated banner effects, spinners, and secure browser launching
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -17,7 +17,11 @@ import {
   formatSuccess,
   formatWarning,
   formatError,
+  formatInfo,
   formatSummaryTable,
+  formatProgressBar,
+  createSpinner,
+  Spinner,
   getOpenCommand,
   openInBrowser,
   toAbsolutePath,
@@ -61,6 +65,19 @@ describe('CLI Formatter & Animated Effects', () => {
     expect(formatError('Failed')).toContain('Failed');
   });
 
+  it('formats informational messages with formatInfo', () => {
+    const info = formatInfo('Scanning started');
+    expect(info).toContain('Scanning started');
+    expect(info).toContain('ℹ');
+  });
+
+  it('formats error with remediation tip in formatError', () => {
+    const err = formatError('Missing config', 'Run repoguard init');
+    expect(err).toContain('Missing config');
+    expect(err).toContain('Tip:');
+    expect(err).toContain('Run repoguard init');
+  });
+
   it('generates a formatted summary table', () => {
     const table = formatSummaryTable({
       critical: 1,
@@ -75,6 +92,65 @@ describe('CLI Formatter & Animated Effects', () => {
     expect(table).toContain('🚨 Action Required');
     expect(table).toContain('MEDIUM');
     expect(table).toContain('⚡ Review Advised');
+  });
+});
+
+describe('In-Terminal Progress Indicators & Spinners', () => {
+  it('formats progress bar accurately at 0%, 50%, and 100%', () => {
+    const bar0 = formatProgressBar(0, 10, { width: 10 });
+    expect(bar0).toContain('0%');
+    expect(bar0).toContain('░░░░░░░░░░');
+
+    const bar50 = formatProgressBar(5, 10, { width: 10 });
+    expect(bar50).toContain('50%');
+    expect(bar50).toContain('█████');
+
+    const bar100 = formatProgressBar(10, 10, { width: 10 });
+    expect(bar100).toContain('100%');
+    expect(bar100).toContain('██████████');
+  });
+
+  it('safely handles boundary cases and clamping in formatProgressBar', () => {
+    const clampedUnder = formatProgressBar(-5, 10, { width: 10 });
+    expect(clampedUnder).toContain('0%');
+
+    const clampedOver = formatProgressBar(15, 10, { width: 10 });
+    expect(clampedOver).toContain('100%');
+
+    const zeroTotal = formatProgressBar(0, 0, { width: 10 });
+    expect(zeroTotal).toContain('0%');
+
+    const noPercent = formatProgressBar(5, 10, { width: 10, showPercent: false });
+    expect(noPercent).not.toContain('%');
+  });
+
+  it('creates and controls a non-interactive Spinner without leaking intervals', () => {
+    const spinner = createSpinner('Loading files...', { interactive: false });
+    expect(spinner).toBeInstanceOf(Spinner);
+
+    spinner.start();
+    spinner.update('Still loading...');
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    spinner.succeed('Loaded successfully');
+    expect(logSpy).toHaveBeenCalled();
+    logSpy.mockRestore();
+  });
+
+  it('spinner handles fail, warn, and info states cleanly', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const spinner1 = createSpinner('Testing fail', { interactive: false }).start();
+    spinner1.fail('Operation failed');
+
+    const spinner2 = createSpinner('Testing warn', { interactive: false }).start();
+    spinner2.warn('Caution required');
+
+    const spinner3 = createSpinner('Testing info', { interactive: false }).start();
+    spinner3.info('Information notice');
+
+    expect(logSpy).toHaveBeenCalledTimes(3);
+    logSpy.mockRestore();
   });
 });
 
