@@ -38,11 +38,11 @@ export function formatMarkdownReport(
   lines.push('');
   lines.push('| Severity | Count | Status |');
   lines.push('| :--- | :--- | :--- |');
-  lines.push(`| **CRITICAL** | ${summary.critical} \vert{}${summary.critical > 0 ? '🚨 Immediate Action Required' : '✅ Clear'} |`);
-  lines.push(`| **HIGH** | ${summary.high} \vert{}${summary.high > 0 ? '⚠️ High Priority' : '✅ Clear'} |`);
-  lines.push(`| **MEDIUM** | ${summary.medium} \vert{}${summary.medium > 0 ? '⚡ Review Recommended' : '✅ Clear'} |`);
-  lines.push(`| **LOW** | ${summary.low} \vert{}${summary.low > 0 ? 'ℹ️ Minor Advisory' : '✅ Clear'} |`);
-  lines.push(`| **INFO** | ${summary.info} \vert{}${summary.info > 0 ? '📝 Informational' : '✅ Clear'} |`);
+  lines.push(`| **CRITICAL** | ${summary.critical} | ${summary.critical > 0 ? '🚨 Immediate Action Required' : '✅ Clear'} |`);
+  lines.push(`| **HIGH** | ${summary.high} | ${summary.high > 0 ? '⚠️ High Priority' : '✅ Clear'} |`);
+  lines.push(`| **MEDIUM** | ${summary.medium} | ${summary.medium > 0 ? '⚡ Review Recommended' : '✅ Clear'} |`);
+  lines.push(`| **LOW** | ${summary.low} | ${summary.low > 0 ? 'ℹ️ Minor Advisory' : '✅ Clear'} |`);
+  lines.push(`| **INFO** | ${summary.info} | ${summary.info > 0 ? '📝 Informational' : '✅ Clear'} |`);
   lines.push('');
 
   // Findings Section
@@ -69,7 +69,8 @@ export function formatMarkdownReport(
   );
 
   sortedFindings.forEach((finding, index) => {
-    lines.push(`### ${index + 1}. [${finding.severity}]${finding.title}`);
+    // FIXED: Added space between badge and title
+    lines.push(`### ${index + 1}. [${finding.severity}] ${finding.title}`);
     lines.push('');
     lines.push(`- **ID:** \`${finding.id}\``);
     lines.push(`- **Category:** \`${finding.category}\``);
