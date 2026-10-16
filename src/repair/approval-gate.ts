@@ -216,21 +216,6 @@ export class ApprovalGate {
               filePath,
             };
           }
-
-          if (
-            err instanceof Error &&
-            (err.message.includes('readline was closed') || (err as { code?: string }).code === 'ERR_USE_AFTER_CLOSE')
-          ) {
-            return {
-              status: 'REJECTED',
-              approved: false,
-              reason: 'Input stream ended or was closed before confirmation was received.',
-              timestamp: new Date().toISOString(),
-              patchId,
-              filePath,
-            };
-          }
-
           throw err;
         }
 
@@ -321,4 +306,3 @@ export async function requestApproval(
   const gate = new ApprovalGate();
   return gate.requestApproval(candidate, options);
 }
-
