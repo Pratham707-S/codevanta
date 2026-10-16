@@ -40,6 +40,7 @@ export function formatHtmlReport(
   const pageTitle = escapeHtml(options.title || `RepoGuard Audit Report — ${record.projectName}`);
   const includeEvidence = options.includeEvidence !== false;
   const findings = record.findings || [];
+  const summary = record.summary || { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
 
   const severityBadgeClass: Record<string, string> = {
     CRITICAL: 'badge-critical',
@@ -69,7 +70,14 @@ export function formatHtmlReport(
         const badgeClass = severityBadgeClass[f.severity] || 'badge-info';
         const borderClass = severityBorderClass[f.severity] || 'border-info';
         const lineInfo = f.lineRange ? ` (Lines ${escapeHtml(f.lineRange.start)}–${escapeHtml(f.lineRange.end)})` : '';
-        const confidenceInfo = f.confidence !== undefined ? `<span class="confidence-tag">Confidence: ${(f.confidence * 100).toFixed(0)}%</span>` : '';
+        
+        const confidenceVal = typeof f.confidence === 'number' 
+          ? (f.confidence <= 1 ? f.confidence * 100 : f.confidence) 
+          : undefined;
+        const confidenceInfo = confidenceVal !== undefined 
+          ? `<span class="confidence-tag">Confidence: ${confidenceVal.toFixed(0)}%</span>` 
+          : '';
+
         const evidenceBlock = (includeEvidence && f.evidence)
           ? `<pre class="evidence"><code>${escapeHtml(f.evidence)}</code></pre>`
           : '';
@@ -104,12 +112,8 @@ export function formatHtmlReport(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${pageTitle}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      /* AI Warm Beige & Off-White Color System */
       --canvas: #f6f3eb;
       --canvas-subtle: #efebe0;
       --card-bg: #ffffff;
@@ -118,34 +122,28 @@ export function formatHtmlReport(
       --text-subtle: #968e83;
       --border: #e4dfd3;
       --border-subtle: #ebe7de;
-
       --critical: #c5221f;
       --critical-bg: #fdf2f2;
       --critical-border: #f8b4b4;
-
       --high: #b45309;
       --high-bg: #fef8ee;
       --high-border: #fcd34d;
-
       --medium: #b45309;
       --medium-bg: #fffbeb;
       --medium-border: #fde68a;
-
       --low: #1d4ed8;
       --low-bg: #eff6ff;
       --low-border: #bfdbfe;
-
       --info: #44403c;
       --info-bg: #f5f5f4;
       --info-border: #d6d3d1;
-
       --success: #15803d;
       --primary: #201e1b;
       --primary-hover: #000000;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background-color: var(--canvas);
       background-image: radial-gradient(circle at 10% 20%, rgba(255,255,255,0.7) 0%, transparent 40%),
                         radial-gradient(circle at 90% 80%, rgba(235,228,214,0.5) 0%, transparent 50%);
@@ -245,7 +243,6 @@ export function formatHtmlReport(
     }
     .stat-val { font-size: 1.75rem; font-weight: 700; line-height: 1.1; margin-bottom: 0.2rem; }
     .stat-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-
     .section-title {
       font-size: 1.15rem;
       font-weight: 700;
@@ -266,7 +263,6 @@ export function formatHtmlReport(
     .border-medium { border-left: 4px solid var(--medium); }
     .border-low { border-left: 4px solid var(--low); }
     .border-info { border-left: 4px solid var(--info); }
-
     .finding-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
     .finding-number { color: var(--text-subtle); font-weight: 600; font-size: 0.9rem; }
     .finding-title { font-size: 1.05rem; font-weight: 600; color: var(--text); flex: 1; }
@@ -302,7 +298,7 @@ export function formatHtmlReport(
       border-bottom: 1px solid var(--border-subtle);
     }
     .finding-meta code {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       background: var(--canvas-subtle);
       color: #2e2a24;
       padding: 0.15rem 0.4rem;
@@ -316,7 +312,7 @@ export function formatHtmlReport(
       border-radius: 6px;
       padding: 0.85rem 1rem;
       overflow-x: auto;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.82rem;
       color: #7dd3fc;
     }
@@ -366,23 +362,23 @@ export function formatHtmlReport(
 
     <div class="stats-grid">
       <div class="stat-card" style="border-top: 3px solid var(--critical)">
-        <div class="stat-val" style="color: var(--critical)">${record.summary.critical}</div>
+        <div class="stat-val" style="color: var(--critical)">${summary.critical}</div>
         <div class="stat-label">Critical</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--high)">
-        <div class="stat-val" style="color: var(--high)">${record.summary.high}</div>
+        <div class="stat-val" style="color: var(--high)">${summary.high}</div>
         <div class="stat-label">High</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--medium)">
-        <div class="stat-val" style="color: var(--medium)">${record.summary.medium}</div>
+        <div class="stat-val" style="color: var(--medium)">${summary.medium}</div>
         <div class="stat-label">Medium</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--low)">
-        <div class="stat-val" style="color: var(--low)">${record.summary.low}</div>
+        <div class="stat-val" style="color: var(--low)">${summary.low}</div>
         <div class="stat-label">Low</div>
       </div>
       <div class="stat-card" style="border-top: 3px solid var(--info)">
-        <div class="stat-val" style="color: var(--info)">${record.summary.info}</div>
+        <div class="stat-val" style="color: var(--info)">${summary.info}</div>
         <div class="stat-label">Info</div>
       </div>
     </div>
@@ -400,13 +396,18 @@ export function formatHtmlReport(
   <script>
     const reportData = ${safeRecordJson};
     function downloadJsonReport() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportData, null, 2));
+      const jsonString = JSON.stringify(reportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
       const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", "repoguard-" + reportData.runId + ".json");
+      downloadAnchor.href = url;
+      downloadAnchor.download = "repoguard-" + (reportData.runId || 'scan') + ".json";
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+      
+      URL.revokeObjectURL(url);
     }
   </script>
 </body>

@@ -44,11 +44,21 @@ export class ReportBuilder {
   }
 
   /**
-   * Appends timeline events to the audit report.
+   * Appends timeline events to the audit report and embeds them into the record if needed.
    */
   public addTimelineEvent(event: TimelineEvent): this {
     this.timelineEvents.push(event);
     return this;
+  }
+
+  /**
+   * Helper to get a record enriched with accumulated timeline events.
+   */
+  private getEnrichedRecord(): ScanRunRecord & { timeline?: TimelineEvent[] } {
+    return {
+      ...this.record,
+      timeline: this.timelineEvents.length > 0 ? this.timelineEvents : (this.record as ScanRunRecord & { timeline?: TimelineEvent[] }).timeline,
+    };
   }
 
   /**
@@ -58,9 +68,13 @@ export class ReportBuilder {
     let md = formatMarkdownReport(this.record, this.options.markdownOptions);
     if (this.timelineEvents.length > 0) {
       const timelineSection = formatEvidenceTimelineMarkdown(this.timelineEvents);
-      // Insert timeline before the footer divider
-      if (md.includes('---')) {
-        md = md.replace('---', `${timelineSection}\n---\n`);
+      // Robustly target the final thematic break right before the footer
+      const lastSeparatorIndex = md.lastIndexOf('---');
+      if (lastSeparatorIndex !== -1) {
+        md = 
+          md.slice(0, lastSeparatorIndex) + 
+          `${timelineSection}\n\n` + 
+          md.slice(lastSeparatorIndex);
       } else {
         md += `\n\n${timelineSection}`;
       }
@@ -69,17 +83,19 @@ export class ReportBuilder {
   }
 
   /**
-   * Builds the JSON formatted report.
+   * Builds the JSON formatted report (including timeline events if present).
    */
   public buildJson(): string {
-    return formatJsonReport(this.record, this.options.jsonOptions);
+    const enriched = this.getEnrichedRecord();
+    return formatJsonReport(enriched, this.options.jsonOptions);
   }
 
   /**
    * Builds the HTML formatted report.
    */
   public buildHtml(): string {
-    return formatHtmlReport(this.record, this.options.htmlOptions);
+    // You can also pass enriched record or timeline options to HTML if supported
+    return formatHtmlReport(this.getEnrichedRecord(), this.options.htmlOptions);
   }
 
   /**
@@ -103,7 +119,9 @@ export class ReportBuilder {
     const dir = targetDir || this.options.outputDir || path.join(process.cwd(), '.repoguard', 'reports');
     await fs.mkdir(dir, { recursive: true });
 
-    const safeRunId = this.record.runId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    // FIXED: Safe runId coercion to prevent crashes if runId is missing
+    const rawRunId = this.record.runId || 'scan-run';
+    const safeRunId = String(rawRunId).replace(/[^a-zA-Z0-9_-]/g, '_');
     const result: SavedReportPaths = {};
 
     if (formats.includes('markdown')) {
