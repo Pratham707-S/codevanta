@@ -12,10 +12,11 @@ import { registerInitCommand } from './commands/init.command.js';
 import { registerScanCommand } from './commands/scan.command.js';
 import { registerReportCommand } from './commands/report.command.js';
 import { registerStatusCommand } from './commands/status.command.js';
+import { registerReviewCommand } from './commands/review.command.js';
 
 import { runInteractiveMode } from './interactive.js';
 
-export function createCliProgram(version: string = '0.1.2'): Command {
+export function createCliProgram(version: string = '0.1.3'): Command {
   const program = new Command('repoguard');
 
   program
@@ -31,6 +32,7 @@ export function createCliProgram(version: string = '0.1.2'): Command {
   registerScanCommand(program);
   registerReportCommand(program);
   registerStatusCommand(program);
+  registerReviewCommand(program);
 
   // Hook to display animated startup effect on non-json, interactive terminal runs
   program.hook('preAction', async (_thisCommand, actionCommand) => {
@@ -45,7 +47,7 @@ export function createCliProgram(version: string = '0.1.2'): Command {
 }
 
 export async function runCli(argv: string[] = process.argv): Promise<void> {
-  const version = '0.1.2';
+  const version = '0.1.3';
   const args = argv.slice(2);
   const program = createCliProgram(version);
 

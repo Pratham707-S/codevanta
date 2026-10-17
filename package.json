@@ -1,10 +1,11 @@
 {
   "name": "repoguard-agent",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "CLI-first AI software reliability tool providing safe, evidence-backed repository inspection, AI-assisted investigation, reviewable repairs, and controlled verification.",
   "type": "module",
   "bin": {
-    "repoguard": "./dist/index.js"
+    "repoguard": "./dist/index.js",
+    "repoguard-agent": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,6 +21,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "start": "tsc -p tsconfig.build.json && node dist/index.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
