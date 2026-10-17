@@ -4,8 +4,8 @@
  * Path: src/analysis/rules/index.ts
  * Owner: Team Lead
  * Purpose: Rules suite public exports
- *
- * @todo Implementation planned in assigned milestone.
  */
 
-export {};
+export * from './rule.contract.js';
+export * from './suspicious-patterns.js';
+export * from './rule-runner.js';

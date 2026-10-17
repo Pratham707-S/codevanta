@@ -4,8 +4,7 @@
  * Path: src/repository/index.ts
  * Owner: Manni
  * Purpose: Repository module public exports
- *
- * @todo Implementation planned in assigned milestone.
  */
 
-export {};
+export * from './discovery.js';
+export * from './file-walker.js';

@@ -51,8 +51,10 @@ export async function runReportAction(
     console.log(formatSuccess(`Report successfully generated for run ${chalk.cyan(record.runId)}!`));
     if (savedPaths.htmlPath) {
       const uri = formatFileUri(savedPaths.htmlPath);
-      console.log(`  🌐 HTML Report: ${chalk.underline.cyan(uri)}`);
-      console.log(`     ${chalk.dim('(Cmd + Click link above to open directly in browser)')}`);
+      const encodedUri = `file://${encodeURI(savedPaths.htmlPath)}`;
+      const clickable = `\u001b]8;;${encodedUri}\u001b\\${chalk.underline.cyan(uri)}\u001b]8;;\u001b\\`;
+      console.log(`  🌐 HTML Report: ${clickable}`);
+      console.log(`     ${chalk.dim('(Cmd + Click link above or run with --open to launch browser)')}`);
 
       if (options.open) {
         openInBrowser(savedPaths.htmlPath);
