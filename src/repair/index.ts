@@ -8,4 +8,4 @@
  * @todo Implementation planned in assigned milestone.
  */
 
-export {};
+export * from './approval-gate.js';
