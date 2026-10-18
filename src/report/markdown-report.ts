@@ -7,6 +7,7 @@
  */
 
 import { ScanRunRecord } from '../storage/run-store.js';
+import { redactSecretEvidence } from './redaction.js';
 
 export interface MarkdownReportOptions {
   includeEvidence?: boolean;
@@ -89,7 +90,7 @@ export function formatMarkdownReport(
     if (includeEvidence && finding.evidence) {
       lines.push('**Evidence:**');
       lines.push('```');
-      lines.push(finding.evidence);
+      lines.push(redactSecretEvidence(finding.evidence));
       lines.push('```');
       lines.push('');
     }
