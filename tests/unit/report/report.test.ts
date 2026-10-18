@@ -18,8 +18,6 @@ import {
   formatEvidenceTimelineMarkdown,
   ReportBuilder,
   compareScans,
-  redactSecretEvidence,
-  getRemediationRecommendation,
 } from '../../../src/report/index.js';
 import { ScanRunRecord, RunSummaryItem } from '../../../src/storage/index.js';
 
