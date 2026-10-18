@@ -20,6 +20,7 @@ import {
   compareScans,
 } from '../../../src/report/index.js';
 import { ScanRunRecord, RunSummaryItem } from '../../../src/storage/index.js';
+import { createCliProgram } from '../../../src/cli/cli.js';
 
 describe('Reporting Engine — Markdown, JSON, HTML & Builder', () => {
   let tempDir: string;
@@ -463,5 +464,170 @@ describe('Reporting Engine — Markdown, JSON, HTML & Builder', () => {
       const writtenMd = await fs.readFile(saved.markdownPath!, 'utf-8');
       expect(writtenMd).toBe(all.markdown);
     });
+
+    it('first scan — no previous run: report generation succeeds without a differential timeline section', async () => {
+      // Simulate the very first scan: no previousRecord, no history
+      const firstRecord: ScanRunRecord = {
+        runId: 'first-scan-001',
+        projectName: 'new-project',
+        timestamp: '2026-10-18T10:00:00.000Z',
+        durationMs: 200,
+        repositoryRoot: '/workspace/new-project',
+        filesScanned: 8,
+        findingsCount: 1,
+        summary: { critical: 1, high: 0, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'SEC-001',
+            title: 'Hardcoded Secret',
+            severity: 'CRITICAL',
+            category: 'SECURITY',
+            path: 'src/config.ts',
+            lineRange: { start: 3, end: 3 },
+            explanation: 'AWS key hardcoded in source.',
+          },
+        ],
+      };
+
+      // No previousRecord passed — first scan has nothing to compare to
+      const builder = new ReportBuilder(firstRecord, { outputDir: tempDir });
+
+      // Must not throw
+      const html = builder.buildHtml();
+      expect(html).toContain('<!DOCTYPE html>');
+      expect(html).toContain('first-scan-001');
+      // History table must be absent (no history provided)
+      expect(html).not.toContain('Scan History &amp; Trend');
+      expect(html).not.toContain('Scan History & Trend');
+      // Differential timeline section must be absent
+      expect(html).not.toContain('Differential Scan Timeline');
+
+      // Report file saves cleanly
+      const saved = await builder.saveReports(tempDir, ['html', 'markdown']);
+      expect(saved.htmlPath).toBeDefined();
+      expect(saved.markdownPath).toBeDefined();
+
+      const writtenHtml = await fs.readFile(saved.htmlPath!, 'utf-8');
+      expect(writtenHtml).toContain('Hardcoded Secret');
+      expect(writtenHtml).not.toContain('Differential Scan Timeline');
+    });
+
+    it('subsequent scan — history and previous run are passed to builder and comparison renders in HTML', async () => {
+      const previousRecord: ScanRunRecord = {
+        runId: 'scan-run-prev',
+        projectName: 'existing-project',
+        timestamp: '2026-10-17T09:00:00.000Z',
+        durationMs: 180,
+        repositoryRoot: '/workspace/existing-project',
+        filesScanned: 10,
+        findingsCount: 2,
+        summary: { critical: 1, high: 1, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'SEC-001',
+            title: 'Hardcoded Secret',
+            severity: 'CRITICAL',
+            category: 'SECURITY',
+            path: 'src/config.ts',
+            lineRange: { start: 3, end: 3 },
+            explanation: 'AWS key hardcoded in source.',
+          },
+          {
+            id: 'SEC-002',
+            title: 'SQL Injection',
+            severity: 'HIGH',
+            category: 'SECURITY',
+            path: 'src/db.ts',
+            lineRange: { start: 15, end: 17 },
+            explanation: 'String concatenation in query.',
+          },
+        ],
+      };
+
+      const currentRecord: ScanRunRecord = {
+        runId: 'scan-run-curr',
+        projectName: 'existing-project',
+        timestamp: '2026-10-18T09:00:00.000Z',
+        durationMs: 165,
+        repositoryRoot: '/workspace/existing-project',
+        filesScanned: 11,
+        findingsCount: 2,
+        summary: { critical: 1, high: 0, medium: 1, low: 0, info: 0 },
+        findings: [
+          // SEC-001 persists (unchanged)
+          {
+            id: 'SEC-001',
+            title: 'Hardcoded Secret',
+            severity: 'CRITICAL',
+            category: 'SECURITY',
+            path: 'src/config.ts',
+            lineRange: { start: 3, end: 3 },
+            explanation: 'AWS key hardcoded in source.',
+          },
+          // SEC-002 resolved; SEC-003 is brand new
+          {
+            id: 'SEC-003',
+            title: 'Path Traversal',
+            severity: 'MEDIUM',
+            category: 'SECURITY',
+            path: 'src/files.ts',
+            lineRange: { start: 22, end: 24 },
+            explanation: 'Unvalidated path concatenation.',
+          },
+        ],
+      };
+
+      const historyItems: RunSummaryItem[] = [
+        {
+          runId: 'scan-run-curr',
+          timestamp: '2026-10-18T09:00:00.000Z',
+          findingsCount: 2,
+          filesScanned: 11,
+          durationMs: 165,
+          summary: { critical: 1, high: 0, medium: 1, low: 0, info: 0 },
+        },
+        {
+          runId: 'scan-run-prev',
+          timestamp: '2026-10-17T09:00:00.000Z',
+          findingsCount: 2,
+          filesScanned: 10,
+          durationMs: 180,
+          summary: { critical: 1, high: 1, medium: 0, low: 0, info: 0 },
+        },
+      ];
+
+      // Subsequent scan: history AND previousRecord are provided
+      const builder = new ReportBuilder(currentRecord, {
+        outputDir: tempDir,
+        history: historyItems,
+        previousRecord,
+      });
+
+      const html = builder.buildHtml();
+
+      // History table must appear
+      expect(html).toContain('Scan History & Trend');
+      expect(html).toContain('scan-run-curr');
+      expect(html).toContain('scan-run-prev');
+
+      // Differential timeline must appear with correct classifications
+      expect(html).toContain('Differential Scan Timeline');
+      expect(html).toContain('Path Traversal');   // NEW
+      expect(html).toContain('SQL Injection');     // RESOLVED
+      expect(html).toContain('NEW');
+      expect(html).toContain('RESOLVED');
+      expect(html).toContain('UNCHANGED');
+
+      // Delta badge: +1 - 1 = 0 net (totalDelta check in delta label)
+      expect(html).toContain('scan-run-prev');     // previousRunId in comparison card
+      expect(html).toContain('scan-run-curr');     // currentRunId in comparison card
+
+      // Save and verify file on disk
+      const saved = await builder.saveReports(tempDir, ['html']);
+      const writtenHtml = await fs.readFile(saved.htmlPath!, 'utf-8');
+      expect(writtenHtml).toContain('Differential Scan Timeline');
+      expect(writtenHtml).toContain('Scan History & Trend');
+    });
   });
 });
+
