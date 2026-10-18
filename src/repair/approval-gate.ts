@@ -219,7 +219,8 @@ export class ApprovalGate {
 
           if (
             err instanceof Error &&
-            (err.message.includes('readline was closed') || (err as { code?: string }).code === 'ERR_USE_AFTER_CLOSE')
+            (err.message.includes('readline was closed') ||
+              (err as { code?: string }).code === 'ERR_USE_AFTER_CLOSE')
           ) {
             return {
               status: 'REJECTED',
@@ -321,4 +322,3 @@ export async function requestApproval(
   const gate = new ApprovalGate();
   return gate.requestApproval(candidate, options);
 }
-
