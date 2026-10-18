@@ -20,6 +20,23 @@ export interface StorageFinding {
   evidence?: string;
   confidence?: number;
   status?: string;
+  recommendation?: string;
+}
+
+export interface RunSummaryItem {
+  runId: string;
+  timestamp: string;
+  findingsCount: number;
+  projectName?: string;
+  filesScanned?: number;
+  durationMs?: number;
+  summary?: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    info: number;
+  };
 }
 
 export interface ScanRunRecord {
@@ -132,13 +149,13 @@ export class RunStore {
   /**
    * Lists all available scan run records sorted by descending timestamp.
    */
-  public async listRuns(): Promise<Array<{ runId: string; timestamp: string; findingsCount: number }>> {
+  public async listRuns(): Promise<RunSummaryItem[]> {
     await this.init();
     try {
       const files = await fs.readdir(this.runsDir);
       const jsonFiles = files.filter((f) => f.endsWith('.json') && !f.includes('.corrupted.'));
 
-      const results: Array<{ runId: string; timestamp: string; findingsCount: number }> = [];
+      const results: RunSummaryItem[] = [];
 
       for (const file of jsonFiles) {
         try {
@@ -149,6 +166,10 @@ export class RunStore {
               runId: parsed.runId,
               timestamp: parsed.timestamp,
               findingsCount: parsed.findingsCount ?? parsed.findings?.length ?? 0,
+              projectName: parsed.projectName,
+              filesScanned: parsed.filesScanned,
+              durationMs: parsed.durationMs,
+              summary: parsed.summary,
             });
           }
         } catch {
@@ -164,6 +185,34 @@ export class RunStore {
       }
       throw error;
     }
+  }
+
+  /**
+   * Retrieves scan history up to a maximum limit.
+   */
+  public async getHistory(limit: number = 20): Promise<RunSummaryItem[]> {
+    const runs = await this.listRuns();
+    return runs.slice(0, limit);
+  }
+
+  /**
+   * Finds the scan run immediately preceding the given runId (by timestamp).
+   */
+  public async getPreviousRun(currentRunId: string): Promise<ScanRunRecord | null> {
+    const runs = await this.listRuns();
+    const currentIndex = runs.findIndex((r) => r.runId === currentRunId);
+    if (currentIndex === -1) {
+      const currentRecord = await this.getRun(currentRunId);
+      if (!currentRecord) return null;
+      const currentTs = new Date(currentRecord.timestamp).getTime();
+      const older = runs.find((r) => new Date(r.timestamp).getTime() < currentTs);
+      return older ? this.getRun(older.runId) : null;
+    }
+    const previousSummary = runs[currentIndex + 1];
+    if (!previousSummary) {
+      return null;
+    }
+    return this.getRun(previousSummary.runId);
   }
 
   /**
