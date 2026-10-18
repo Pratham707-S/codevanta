@@ -19,8 +19,8 @@ export function redactSecretEvidence(evidence: unknown): string {
   }
   let str = String(evidence);
 
-  // 1. AWS Access Key ID (AKIA followed by 16 alphanumeric characters)
-  str = str.replace(/\b(AKIA[0-9A-Z]{16})\b/g, (match) => match.slice(0, 4) + '****************');
+  // 1. AWS Access Key ID (AKIA prefix)
+  str = str.replace(/\b(AKIA[0-9A-Z]{16,28})\b/g, (match) => match.slice(0, 4) + '*'.repeat(Math.max(16, match.length - 4)));
 
   // 2. GitHub Personal Access Tokens (classic ghp_ and fine-grained github_pat_)
   str = str.replace(/\b(ghp_[a-zA-Z0-9]{36})\b/g, (match) => match.slice(0, 4) + '********************************');
@@ -28,7 +28,7 @@ export function redactSecretEvidence(evidence: unknown): string {
 
   // 3. Generic credentials, API keys, tokens, and secret assignments
   str = str.replace(
-    /((?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret|access_?token)\s*[:=]\s*["'])[A-Za-z0-9_\-]{8,}(["'])/gi,
+    /((?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret|access_?token|secret_?access_?key|aws_?key)\s*[:=]\s*["'])[A-Za-z0-9_\-+/=]{8,}(["'])/gi,
     '$1[REDACTED_SECRET]$2'
   );
 
