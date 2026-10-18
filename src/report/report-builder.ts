@@ -8,17 +8,21 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ScanRunRecord } from '../storage/run-store.js';
+import { ScanRunRecord, RunSummaryItem } from '../storage/run-store.js';
 import { formatMarkdownReport, MarkdownReportOptions } from './markdown-report.js';
 import { formatJsonReport, JsonReportOptions } from './json-report.js';
 import { formatHtmlReport, HtmlReportOptions } from './html-report.js';
 import { TimelineEvent, formatEvidenceTimelineMarkdown } from './evidence-timeline.js';
+import { ScanComparison } from './scan-comparison.js';
 
 export interface ReportBuilderOptions {
   markdownOptions?: MarkdownReportOptions;
   jsonOptions?: JsonReportOptions;
   htmlOptions?: HtmlReportOptions;
   outputDir?: string;
+  history?: RunSummaryItem[];
+  previousRecord?: ScanRunRecord;
+  comparison?: ScanComparison;
 }
 
 export interface GeneratedReports {
@@ -38,9 +42,40 @@ export class ReportBuilder {
   private timelineEvents: TimelineEvent[] = [];
   private options: ReportBuilderOptions;
 
+  private history?: RunSummaryItem[];
+  private previousRecord?: ScanRunRecord;
+  private comparison?: ScanComparison;
+
   constructor(record: ScanRunRecord, options: ReportBuilderOptions = {}) {
     this.record = record;
     this.options = options;
+    this.history = options.history;
+    this.previousRecord = options.previousRecord;
+    this.comparison = options.comparison;
+  }
+
+  /**
+   * Sets scan history items to include in HTML reporting.
+   */
+  public withHistory(history: RunSummaryItem[]): this {
+    this.history = history;
+    return this;
+  }
+
+  /**
+   * Sets previous scan run record for differential timeline comparison.
+   */
+  public withPreviousRun(previous: ScanRunRecord): this {
+    this.previousRecord = previous;
+    return this;
+  }
+
+  /**
+   * Directly sets precomputed scan comparison.
+   */
+  public withComparison(comparison: ScanComparison): this {
+    this.comparison = comparison;
+    return this;
   }
 
   /**
@@ -91,11 +126,16 @@ export class ReportBuilder {
   }
 
   /**
-   * Builds the HTML formatted report.
+   * Builds the HTML formatted report with optional scan history and differential comparison.
    */
   public buildHtml(): string {
-    // You can also pass enriched record or timeline options to HTML if supported
-    return formatHtmlReport(this.getEnrichedRecord(), this.options.htmlOptions);
+    const htmlOpts: HtmlReportOptions = {
+      ...this.options.htmlOptions,
+      history: this.history ?? this.options.history ?? this.options.htmlOptions?.history,
+      previousRecord: this.previousRecord ?? this.options.previousRecord ?? this.options.htmlOptions?.previousRecord,
+      comparison: this.comparison ?? this.options.comparison ?? this.options.htmlOptions?.comparison,
+    };
+    return formatHtmlReport(this.getEnrichedRecord(), htmlOpts);
   }
 
   /**
