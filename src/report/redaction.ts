@@ -28,8 +28,12 @@ export function redactSecretEvidence(evidence: unknown): string {
 
   // 3. Generic credentials, API keys, tokens, and secret assignments
   str = str.replace(
-    /((?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret|access_?token|secret_?access_?key|aws_?key)\s*[:=]\s*["'])[A-Za-z0-9_\-+/=]{8,}(["'])/gi,
+    /((?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret|access_?token|secret_?access_?key|aws_?key)\s*[:=]\s*["'])[^"'\r\n]+(["'])/gi,
     '$1[REDACTED_SECRET]$2'
+  );
+  str = str.replace(
+    /((?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret|access_?token|secret_?access_?key|aws_?key)\s*[:=]\s*)(?!["'])[^\s,;]{8,}/gi,
+    '$1[REDACTED_SECRET]'
   );
 
   // 4. Bearer tokens in headers or authorization strings
