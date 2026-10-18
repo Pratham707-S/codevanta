@@ -20,7 +20,6 @@ import {
   compareScans,
 } from '../../../src/report/index.js';
 import { ScanRunRecord, RunSummaryItem } from '../../../src/storage/index.js';
-import { createCliProgram } from '../../../src/cli/cli.js';
 
 describe('Reporting Engine — Markdown, JSON, HTML & Builder', () => {
   let tempDir: string;
