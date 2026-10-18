@@ -279,7 +279,7 @@ describe('Reporting Engine — Markdown, JSON, HTML & Builder', () => {
 
       const html = formatHtmlReport(sampleRecord, { history: historyItems });
 
-      expect(html).toContain('Scan History &amp; Trend');
+      expect(html).toContain('Scan History & Trend');
       expect(html).toContain('run-history-002');
       expect(html).toContain('run-history-001');
       expect(html).toContain('1 C');
