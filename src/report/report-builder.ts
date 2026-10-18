@@ -21,8 +21,8 @@ export interface ReportBuilderOptions {
   htmlOptions?: HtmlReportOptions;
   outputDir?: string;
   history?: RunSummaryItem[];
-  previousRecord?: ScanRunRecord;
-  comparison?: ScanComparison;
+  previousRecord?: ScanRunRecord | null;
+  comparison?: ScanComparison | null;
 }
 
 export interface GeneratedReports {
@@ -50,8 +50,12 @@ export class ReportBuilder {
     this.record = record;
     this.options = options;
     this.history = options.history;
-    this.previousRecord = options.previousRecord;
-    this.comparison = options.comparison;
+    if (options.previousRecord) {
+      this.previousRecord = options.previousRecord;
+    }
+    if (options.comparison) {
+      this.comparison = options.comparison;
+    }
   }
 
   /**
@@ -65,16 +69,20 @@ export class ReportBuilder {
   /**
    * Sets previous scan run record for differential timeline comparison.
    */
-  public withPreviousRun(previous: ScanRunRecord): this {
-    this.previousRecord = previous;
+  public withPreviousRun(previous: ScanRunRecord | null): this {
+    if (previous) {
+      this.previousRecord = previous;
+    }
     return this;
   }
 
   /**
    * Directly sets precomputed scan comparison.
    */
-  public withComparison(comparison: ScanComparison): this {
-    this.comparison = comparison;
+  public withComparison(comparison: ScanComparison | null): this {
+    if (comparison) {
+      this.comparison = comparison;
+    }
     return this;
   }
 
@@ -159,7 +167,6 @@ export class ReportBuilder {
     const dir = targetDir || this.options.outputDir || path.join(process.cwd(), '.repoguard', 'reports');
     await fs.mkdir(dir, { recursive: true });
 
-    // FIXED: Safe runId coercion to prevent crashes if runId is missing
     const rawRunId = this.record.runId || 'scan-run';
     const safeRunId = String(rawRunId).replace(/[^a-zA-Z0-9_-]/g, '_');
     const result: SavedReportPaths = {};
