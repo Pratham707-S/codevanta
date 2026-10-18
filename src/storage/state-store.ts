@@ -19,6 +19,13 @@ export interface ProjectState {
     timestamp: string;
     findingsCount: number;
     criticalCount?: number;
+    summary?: {
+      critical: number;
+      high: number;
+      medium: number;
+      low: number;
+      info: number;
+    };
   }>;
 }
 
@@ -126,7 +133,18 @@ export class StateStore {
    * Updates state with a newly completed run.
    */
   public async recordRun(
-    runIdOrRecord: string | { runId: string; findingsCount?: number; findings?: unknown[]; summary?: { critical?: number } },
+    runIdOrRecord: string | {
+      runId: string;
+      findingsCount?: number;
+      findings?: unknown[];
+      summary?: {
+        critical?: number;
+        high?: number;
+        medium?: number;
+        low?: number;
+        info?: number;
+      };
+    },
     findingsCount: number = 0,
     criticalCount: number = 0
   ): Promise<ProjectState> {
@@ -138,6 +156,14 @@ export class StateStore {
       ? criticalCount
       : (runIdOrRecord.summary?.critical ?? 0);
 
+    const fullSummary = typeof runIdOrRecord === 'object' && runIdOrRecord.summary ? {
+      critical: runIdOrRecord.summary.critical ?? 0,
+      high: runIdOrRecord.summary.high ?? 0,
+      medium: runIdOrRecord.summary.medium ?? 0,
+      low: runIdOrRecord.summary.low ?? 0,
+      info: runIdOrRecord.summary.info ?? 0,
+    } : undefined;
+
     const state = await this.loadState();
     const timestamp = new Date().toISOString();
     state.lastRunId = runId;
@@ -147,6 +173,7 @@ export class StateStore {
       timestamp,
       findingsCount: fCount,
       criticalCount: cCount,
+      summary: fullSummary,
     });
     // Keep max recent run history entries
     if (state.history.length > this.maxHistory) {
