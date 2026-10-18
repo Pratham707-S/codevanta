@@ -177,7 +177,10 @@ export class RunStore {
         }
       }
 
-      return results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return results.sort((a, b) => {
+        const diff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        return diff !== 0 ? diff : b.runId.localeCompare(a.runId);
+      });
     } catch (error: unknown) {
       const err = error as NodeJS.ErrnoException;
       if (err.code === 'ENOENT') {
