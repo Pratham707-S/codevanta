@@ -177,14 +177,15 @@ describe('Integration: Scan Pipeline with Real Fixtures', () => {
       expect(afterScan1.length).toBe(1);
 
       // Scan 1 HTML — no previous run, so NO timeline
-      const reports1 = await fs.readdir(join(projectDir, '.repoguard', 'reports'));
-      const html1File = reports1.find((f) => f.endsWith('.html'));
+      const reportsBefore = await fs.readdir(join(projectDir, '.repoguard', 'reports'));
+      const html1File = reportsBefore.find((f) => f.endsWith('.html'));
       expect(html1File).toBeDefined();
       const html1 = await fs.readFile(join(projectDir, '.repoguard', 'reports', html1File!), 'utf8');
       expect(html1).not.toContain('Differential Scan Timeline');
 
-      // Wait 1 ms to guarantee distinct timestamps between runs
-      await new Promise((r) => setTimeout(r, 5));
+      // Wait > 1 second to guarantee distinct second-granularity timestamp between runs
+      // (run IDs are timestamped at second precision: run-YYYYMMDDHHMMSS-xxxxx)
+      await new Promise((r) => setTimeout(r, 1100));
 
       // --- Scan 2: fix SQL injection; secret persists ---
       const scan2Code = [
@@ -201,21 +202,26 @@ describe('Integration: Scan Pipeline with Real Fixtures', () => {
       const afterScan2 = await runStore.getHistory(20);
       expect(afterScan2.length).toBe(2);
 
-      // Scan 2 HTML — previous run exists, so history table AND differential timeline must appear
-      const reports2 = await fs.readdir(join(projectDir, '.repoguard', 'reports'));
-      // Pick the NEWEST html file (largest name sorts last alphabetically for our timestamped IDs)
-      const htmlFiles = reports2
-        .filter((f) => f.endsWith('.html'))
-        .sort();
-      const latestHtmlFile = htmlFiles[htmlFiles.length - 1]!;
-      const html2 = await fs.readFile(join(projectDir, '.repoguard', 'reports', latestHtmlFile), 'utf8');
+      // Identify Scan 2's HTML file by diffing the reports directory before and after
+      const reportsAfter = await fs.readdir(join(projectDir, '.repoguard', 'reports'));
+      const newHtmlFiles = reportsAfter.filter(
+        (f) => f.endsWith('.html') && !reportsBefore.includes(f)
+      );
+      expect(newHtmlFiles.length).toBe(1);
+      const html2 = await fs.readFile(
+        join(projectDir, '.repoguard', 'reports', newHtmlFiles[0]!),
+        'utf8'
+      );
 
-      // History table must be present with both run IDs
+      // History table must be present — 2 runs shown
       expect(html2).toContain('Scan History & Trend');
-      expect(html2).toContain(afterScan2[0]!.runId); // current run
-      expect(html2).toContain(afterScan2[1]!.runId); // previous run
+      // The current run's row is marked "Current"
+      expect(html2).toContain('Current');
+      // Both run IDs must appear in the history table
+      expect(html2).toContain(afterScan2[0]!.runId); // most recent (scan 2)
+      expect(html2).toContain(afterScan2[1]!.runId); // previous (scan 1)
 
-      // Differential timeline section must exist
+      // Differential timeline section must exist since a previous run was found
       expect(html2).toContain('Differential Scan Timeline');
       // Must show "vs previous run" comparison card
       expect(html2).toContain('vs previous run');
@@ -228,4 +234,5 @@ describe('Integration: Scan Pipeline with Real Fixtures', () => {
     }
   });
 });
+
 
