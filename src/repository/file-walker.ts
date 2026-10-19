@@ -15,6 +15,60 @@ import path from 'node:path';
 
 const MAX_FILE_SIZE_BYTES = 1024 * 1024;
 
+export interface SourceFile {
+  filePath: string;
+  relativePath: string;
+  content: string;
+}
+
+export interface WalkSourceFilesResult {
+  files: SourceFile[];
+  unreadableFiles: string[];
+}
+
+export interface WalkSourceFilesOptions {
+  maxFileSize?: number;
+}
+
+
+/**
+ * Reads eligible repository files and prepares them for RuleRunner.
+ */
+export async function walkSourceFiles(
+  repositoryRoot: string,
+  options: WalkSourceFilesOptions = {},
+): Promise<WalkSourceFilesResult> {
+  const rootPath = path.resolve(repositoryRoot);
+  const maxFileSizeBytes =
+    options.maxFileSize ?? MAX_FILE_SIZE_BYTES;
+
+  const walkedFiles = walkRepositoryFiles(rootPath, {
+    maxFileSizeBytes,
+  });
+
+  const files: SourceFile[] = [];
+  const unreadableFiles: string[] = [];
+
+  for (const walkedFile of walkedFiles) {
+    const filePath = path.resolve(rootPath, walkedFile.relativePath);
+
+    try {
+      const content = readFileSync(filePath, 'utf8');
+
+      files.push({
+        filePath,
+        relativePath: walkedFile.relativePath,
+        content,
+      });
+    } catch {
+      unreadableFiles.push(walkedFile.relativePath);
+    }
+  }
+
+  return { files, unreadableFiles };
+}
+
+
 const IGNORED_DIRECTORIES = new Set([
   '.git',
   'node_modules',
