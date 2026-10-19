@@ -3,181 +3,267 @@
  *
  * Path: src/repository/file-walker.ts
  * Owner: Manni
- * Purpose: File traversal: safe directory walk respecting ignores, limits, binary skips
+ * Purpose: Safely enumerate repository files without modifying them.
  */
 
-import { promises as fs } from 'node:fs';
+import {
+  lstatSync,
+  readdirSync,
+  readFileSync,
+} from 'node:fs';
 import path from 'node:path';
 
-export interface SourceFileEntry {
-  filePath: string;
-  relativePath: string;
-  content: string;
-  sizeBytes: number;
-}
+const MAX_FILE_SIZE_BYTES = 1024 * 1024;
 
-export interface FileWalkOptions {
-  maxFileSize?: number;
-  excludeDirs?: string[];
-  binaryExtensions?: string[];
-}
-
-export interface FileWalkResult {
-  files: SourceFileEntry[];
-  unreadableFiles: Array<{ path: string; error: string }>;
-  skippedCount: number;
-}
-
-const DEFAULT_EXCLUDE_DIRS = new Set([
+const IGNORED_DIRECTORIES = new Set([
   '.git',
   'node_modules',
   'dist',
   'build',
-  '.repoguard',
-  '.tempmediaStorage',
-  '.user_uploaded',
+  'out',
   'coverage',
+  '.cache',
   '.turbo',
-  '.next',
+  '.idea',
 ]);
 
-const DEFAULT_BINARY_EXTENSIONS = new Set([
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.webp',
-  '.ico',
-  '.svg',
-  '.pdf',
-  '.zip',
-  '.tar',
-  '.gz',
-  '.tgz',
-  '.bz2',
-  '.7z',
-  '.exe',
-  '.dll',
-  '.so',
-  '.dylib',
-  '.wasm',
-  '.woff',
-  '.woff2',
-  '.ttf',
-  '.eot',
-  '.mp3',
-  '.mp4',
-  '.avi',
-  '.mov',
-  '.bin',
-  '.iso',
-  '.dmg',
-  '.lockb',
+const SENSITIVE_FILE_PATTERNS = [
+  /^\.env(?:\..*)?$/i,
+  /\.(?:pem|key|cert|pfx)$/i,
+  /^id_(?:rsa|dsa|ecdsa|ed25519)$/i,
+];
+
+const IGNORED_FILE_NAMES = new Set([
+  '.DS_Store',
+  'Thumbs.db',
+  'npm-debug.log',
 ]);
 
-const DEFAULT_MAX_FILE_SIZE = 1024 * 1024; // 1 MB
+export interface WalkedFile {
+  /** Path relative to the repository root, using forward slashes. */
+  relativePath: string;
+  /** File size in bytes. */
+  size: number;
+}
 
-export async function walkSourceFiles(
-  rootDir: string,
-  options: FileWalkOptions = {}
-): Promise<FileWalkResult> {
-  const root = path.resolve(rootDir);
-  const maxFileSize = options.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
-  const excludeDirs = options.excludeDirs
-    ? new Set(options.excludeDirs)
-    : DEFAULT_EXCLUDE_DIRS;
-  const binaryExtensions = options.binaryExtensions
-    ? new Set(options.binaryExtensions)
-    : DEFAULT_BINARY_EXTENSIONS;
+export interface FileWalkerOptions {
+  /** Maximum file size in bytes. Defaults to 1 MiB. */
+  maxFileSizeBytes?: number;
+  /** Additional directory names to skip. */
+  ignoredDirectories?: readonly string[];
+}
 
-  const files: SourceFileEntry[] = [];
-  const unreadableFiles: Array<{ path: string; error: string }> = [];
-  let skippedCount = 0;
+/**
+ * Returns true when a file name looks like a secret-bearing file.
+ */
+function isSensitiveFile(fileName: string): boolean {
+  return SENSITIVE_FILE_PATTERNS.some((pattern) =>
+    pattern.test(fileName),
+  );
+}
 
-  async function traverse(currentDir: string): Promise<void> {
-    let entries: import('node:fs').Dirent[];
+/**
+ * Basic .gitignore-style matching for common repository patterns.
+ *
+ * Supports blank lines, comments, negation, directory patterns,
+ * root-anchored patterns and simple wildcard matching.
+ * This is intentionally not a complete Git ignore implementation.
+ */
+function createIgnoreMatcher(
+  rootPath: string,
+): (relativePath: string, isDirectory: boolean) => boolean {
+  let lines: string[];
+
+  try {
+    lines = readFileSync(
+      path.join(rootPath, '.gitignore'),
+      'utf8',
+    ).split(/\r?\n/);
+  } catch {
+    lines = [];
+  }
+
+  const rules = lines
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'))
+    .map((line) => {
+      const negated = line.startsWith('!');
+      const pattern = negated ? line.slice(1) : line;
+
+      return {
+        negated,
+        pattern: pattern.replace(/\\/g, '/'),
+      };
+    });
+
+  return (relativePath, isDirectory) => {
+    const normalized = relativePath.replace(/\\/g, '/');
+    let ignored = false;
+
+    for (const rule of rules) {
+      const pattern = rule.pattern;
+
+      if (!pattern || pattern.startsWith('!')) {
+        continue;
+      }
+
+      const directoryPattern = pattern.endsWith('/');
+      const cleanPattern = pattern.replace(/^\/|\/$/g, '');
+
+      if (!cleanPattern) {
+        continue;
+      }
+
+      const escaped = cleanPattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*\*/g, '§DOUBLESTAR§')
+        .replace(/\*/g, '[^/]*')
+        .replace(/\?/g, '[^/]')
+        .replace(/§DOUBLESTAR§/g, '.*');
+
+      const anchored = pattern.startsWith('/');
+      const hasSlash = cleanPattern.includes('/');
+      const expression = anchored || hasSlash
+        ? new RegExp(`^${escaped}(?:/.*)?$`)
+        : new RegExp(`(?:^|/)${escaped}(?:/.*)?$`);
+
+      const matches = expression.test(normalized);
+
+      if (
+        matches &&
+        (!directoryPattern || isDirectory || normalized.includes('/'))
+      ) {
+        ignored = !rule.negated;
+      }
+    }
+
+    return ignored;
+  };
+}
+
+/**
+ * Walks a repository and returns eligible regular files.
+ *
+ * Security behavior:
+ * - Does not follow symbolic links.
+ * - Does not return sensitive files.
+ * - Skips binary files and files exceeding the size limit.
+ * - Does not write, delete, or execute repository files.
+ *
+ * Note: .gitignore support here covers common patterns, not every Git edge case.
+ */
+export function walkRepositoryFiles(
+  repositoryRoot: string,
+  options: FileWalkerOptions = {},
+): WalkedFile[] {
+  const rootPath = path.resolve(repositoryRoot);
+  const maxFileSizeBytes =
+    options.maxFileSizeBytes ?? MAX_FILE_SIZE_BYTES;
+
+  if (
+    !Number.isSafeInteger(maxFileSizeBytes) ||
+    maxFileSizeBytes < 0
+  ) {
+    throw new RangeError(
+      'maxFileSizeBytes must be a non-negative safe integer.',
+    );
+  }
+
+  let rootStats;
+
+  try {
+    rootStats = lstatSync(rootPath);
+  } catch {
+    return [];
+  }
+
+  if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
+    return [];
+  }
+
+  const ignoredDirectories = new Set([
+    ...IGNORED_DIRECTORIES,
+    ...(options.ignoredDirectories ?? []),
+  ]);
+
+  const isIgnoredByGitignore = createIgnoreMatcher(rootPath);
+  const results: WalkedFile[] = [];
+
+  function visit(directoryPath: string, relativeDirectory: string): void {
+    let entries: string[];
+
     try {
-      entries = await fs.readdir(currentDir, { withFileTypes: true });
-    } catch (err) {
-      unreadableFiles.push({
-        path: currentDir,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      entries = readdirSync(directoryPath).sort((a, b) =>
+        a.localeCompare(b),
+      );
+    } catch {
       return;
     }
 
     for (const entry of entries) {
-      const fullPath = path.join(currentDir, entry.name);
+      const absolutePath = path.join(directoryPath, entry);
+      const relativePath = relativeDirectory
+        ? `${relativeDirectory}/${entry}`
+        : entry;
 
-      if (entry.isDirectory()) {
-        if (excludeDirs.has(entry.name)) {
-          skippedCount++;
-          continue;
-        }
-        await traverse(fullPath);
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (binaryExtensions.has(ext)) {
-          skippedCount++;
-          continue;
-        }
+      let stats;
 
-        try {
-          const stats = await fs.stat(fullPath);
-          if (stats.size > maxFileSize) {
-            skippedCount++;
-            continue;
-          }
-
-          const content = await fs.readFile(fullPath, 'utf8');
-          // Binary content safety fallback
-          if (content.includes('\0')) {
-            skippedCount++;
-            continue;
-          }
-
-          const relativePath = path.relative(root, fullPath) || path.basename(fullPath);
-          files.push({
-            filePath: fullPath,
-            relativePath,
-            content,
-            sizeBytes: stats.size,
-          });
-        } catch (err) {
-          unreadableFiles.push({
-            path: fullPath,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      try {
+        stats = lstatSync(absolutePath);
+      } catch {
+        continue;
       }
+
+      // Never follow symlinks.
+      if (stats.isSymbolicLink()) {
+        continue;
+      }
+
+      if (stats.isDirectory()) {
+        if (
+          ignoredDirectories.has(entry) ||
+          isSensitiveFile(entry) ||
+          isIgnoredByGitignore(relativePath, true)
+        ) {
+          continue;
+        }
+
+        visit(absolutePath, relativePath);
+        continue;
+      }
+
+      if (!stats.isFile()) {
+        continue;
+      }
+
+      if (
+        isSensitiveFile(entry) ||
+        IGNORED_FILE_NAMES.has(entry) ||
+        isIgnoredByGitignore(relativePath, false) ||
+        stats.size > maxFileSizeBytes
+      ) {
+        continue;
+      }
+
+      // Reject files containing NUL bytes instead of indexing binary content.
+      try {
+        const descriptor = readFileSync(absolutePath);
+
+        if (descriptor.includes(0)) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      results.push({
+        relativePath,
+        size: stats.size,
+      });
     }
   }
 
-  // Check if rootDir itself is a single file
-  try {
-    const rootStat = await fs.stat(root);
-    if (rootStat.isFile()) {
-      if (rootStat.size <= maxFileSize) {
-        const content = await fs.readFile(root, 'utf8');
-        if (!content.includes('\0')) {
-          files.push({
-            filePath: root,
-            relativePath: path.basename(root),
-            content,
-            sizeBytes: rootStat.size,
-          });
-        }
-      }
-      return { files, unreadableFiles, skippedCount };
-    }
-  } catch (err) {
-    unreadableFiles.push({
-      path: root,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { files, unreadableFiles, skippedCount };
-  }
+  visit(rootPath, '');
 
-  await traverse(root);
-  return { files, unreadableFiles, skippedCount };
+  return results;
 }
