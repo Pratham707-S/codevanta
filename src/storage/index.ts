@@ -16,4 +16,5 @@ export {
   RunStore,
   type StorageFinding,
   type ScanRunRecord,
+  type RunSummaryItem,
 } from './run-store.js';

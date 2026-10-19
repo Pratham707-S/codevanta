@@ -17,8 +17,9 @@ import {
   escapeHtml,
   formatEvidenceTimelineMarkdown,
   ReportBuilder,
+  compareScans,
 } from '../../../src/report/index.js';
-import { ScanRunRecord } from '../../../src/storage/index.js';
+import { ScanRunRecord, RunSummaryItem } from '../../../src/storage/index.js';
 
 describe('Reporting Engine — Markdown, JSON, HTML & Builder', () => {
   let tempDir: string;
@@ -222,6 +223,196 @@ describe('Reporting Engine — Markdown, JSON, HTML & Builder', () => {
       expect(html).toContain('No Security or Reliability Findings Detected');
       expect(html).not.toContain('badge-critical-card');
       expect(html).not.toContain('<div class="finding-card');
+    });
+
+    it('renders full security dashboard with total findings, severity cards, file paths, line numbers, and remediation recommendations', () => {
+      const html = formatHtmlReport(sampleRecord);
+
+      expect(html).toContain('Total Findings');
+      expect(html).toContain('banking-api');
+      expect(html).toContain('SQL Injection Vulnerability');
+      expect(html).toContain('src/db/users.ts');
+      expect(html).toContain('(Lines 45–48)');
+      expect(html).toContain('Remediation Recommendation');
+      expect(html).toContain('parameterized queries');
+      expect(html).toContain('Unhandled Promise Rejection');
+      expect(html).toContain('src/routes/pay.ts');
+      expect(html).toContain('(Lines 12–14)');
+    });
+
+    it('renders custom remediation recommendation when explicitly set on finding', () => {
+      const customRecord: ScanRunRecord = {
+        ...sampleRecord,
+        findings: [
+          {
+            ...sampleRecord.findings[0]!,
+            recommendation: 'Rotate the database credentials and enforce strict prepared statements.',
+          },
+        ],
+      };
+
+      const html = formatHtmlReport(customRecord);
+      expect(html).toContain('Rotate the database credentials and enforce strict prepared statements.');
+    });
+
+    it('renders scan history table with timestamps, finding counts, and severity breakdowns', () => {
+      const historyItems: RunSummaryItem[] = [
+        {
+          runId: 'run-history-002',
+          timestamp: '2026-10-12T11:00:00.000Z',
+          findingsCount: 3,
+          filesScanned: 45,
+          durationMs: 250,
+          summary: { critical: 1, high: 2, medium: 0, low: 0, info: 0 },
+        },
+        {
+          runId: 'run-history-001',
+          timestamp: '2026-10-12T10:00:00.000Z',
+          findingsCount: 5,
+          filesScanned: 40,
+          durationMs: 300,
+          summary: { critical: 2, high: 2, medium: 1, low: 0, info: 0 },
+        },
+      ];
+
+      const html = formatHtmlReport(sampleRecord, { history: historyItems });
+
+      expect(html).toContain('Scan History & Trend');
+      expect(html).toContain('run-history-002');
+      expect(html).toContain('run-history-001');
+      expect(html).toContain('1 C');
+      expect(html).toContain('2 H');
+    });
+
+    it('compares two fixture scans and renders differential timeline in HTML report', () => {
+      const fixtureScan1: ScanRunRecord = {
+        runId: 'scan-fixture-01',
+        projectName: 'fixture-app',
+        timestamp: '2026-10-12T09:00:00.000Z',
+        durationMs: 150,
+        repositoryRoot: '/test',
+        filesScanned: 10,
+        findingsCount: 2,
+        summary: { critical: 1, high: 1, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'SEC-001',
+            title: 'Hardcoded Secret',
+            severity: 'CRITICAL',
+            category: 'SECURITY',
+            path: 'src/config.ts',
+            lineRange: { start: 5, end: 5 },
+            explanation: 'Hardcoded API key detected',
+          },
+          {
+            id: 'SEC-002',
+            title: 'SQL Injection',
+            severity: 'HIGH',
+            category: 'SECURITY',
+            path: 'src/db.ts',
+            lineRange: { start: 20, end: 22 },
+            explanation: 'SQL string concatenation',
+          },
+        ],
+      };
+
+      const fixtureScan2: ScanRunRecord = {
+        runId: 'scan-fixture-02',
+        projectName: 'fixture-app',
+        timestamp: '2026-10-12T10:00:00.000Z',
+        durationMs: 160,
+        repositoryRoot: '/test',
+        filesScanned: 10,
+        findingsCount: 2,
+        summary: { critical: 1, high: 0, medium: 1, low: 0, info: 0 },
+        findings: [
+          // SEC-001 is unchanged
+          {
+            id: 'SEC-001',
+            title: 'Hardcoded Secret',
+            severity: 'CRITICAL',
+            category: 'SECURITY',
+            path: 'src/config.ts',
+            lineRange: { start: 5, end: 5 },
+            explanation: 'Hardcoded API key detected',
+          },
+          // SEC-003 is new (SEC-002 was resolved!)
+          {
+            id: 'SEC-003',
+            title: 'Command Injection',
+            severity: 'MEDIUM',
+            category: 'SECURITY',
+            path: 'src/exec.ts',
+            lineRange: { start: 30, end: 32 },
+            explanation: 'Unsanitized exec call',
+          },
+        ],
+      };
+
+      const diff = compareScans(fixtureScan2, fixtureScan1);
+
+      expect(diff.newFindings.length).toBe(1);
+      expect(diff.newFindings[0]?.id).toBe('SEC-003');
+      expect(diff.resolvedFindings.length).toBe(1);
+      expect(diff.resolvedFindings[0]?.id).toBe('SEC-002');
+      expect(diff.unchangedFindings.length).toBe(1);
+      expect(diff.unchangedFindings[0]?.id).toBe('SEC-001');
+
+      const html = formatHtmlReport(fixtureScan2, { previousRecord: fixtureScan1 });
+
+      expect(html).toContain('Differential Scan Timeline');
+      expect(html).toContain('Command Injection');
+      expect(html).toContain('SQL Injection');
+      expect(html).toContain('RESOLVED');
+      expect(html).toContain('NEW');
+      expect(html).toContain('UNCHANGED');
+    });
+
+    it('defensively redacts secrets from evidence in HTML, Markdown, and JSON reports', () => {
+      const secretRecord: ScanRunRecord = {
+        runId: 'rg-secret-test',
+        projectName: 'secret-service',
+        timestamp: '2026-10-12T12:00:00.000Z',
+        durationMs: 80,
+        repositoryRoot: '/test',
+        filesScanned: 2,
+        findingsCount: 1,
+        summary: { critical: 1, high: 0, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'SEC-001',
+            title: 'Exposed Credentials in Source',
+            severity: 'CRITICAL',
+            category: 'SECURITY',
+            path: 'src/credentials.ts',
+            lineRange: { start: 10, end: 12 },
+            explanation: 'Hardcoded credentials in configuration',
+            evidence: 'const awsKey = "AKIA1234567890EXAMPLE";\nconst pat = "ghp_123456789012345678901234567890123456";\nconst password = "mySuperSecretPassword123";',
+          },
+        ],
+      };
+
+      const html = formatHtmlReport(secretRecord);
+      expect(html).not.toContain('AKIA1234567890EXAMPLE');
+      expect(html).not.toContain('ghp_123456789012345678901234567890123456');
+      expect(html).not.toContain('mySuperSecretPassword123');
+      expect(html).toContain('AKIA****************');
+      expect(html).toContain('ghp_********************************');
+      expect(html).toContain('[REDACTED_SECRET]');
+
+      const md = formatMarkdownReport(secretRecord);
+      expect(md).not.toContain('AKIA1234567890EXAMPLE');
+      expect(md).not.toContain('ghp_123456789012345678901234567890123456');
+      expect(md).not.toContain('mySuperSecretPassword123');
+      expect(md).toContain('AKIA****************');
+      expect(md).toContain('[REDACTED_SECRET]');
+
+      const jsonStr = formatJsonReport(secretRecord);
+      expect(jsonStr).not.toContain('AKIA1234567890EXAMPLE');
+      expect(jsonStr).not.toContain('ghp_123456789012345678901234567890123456');
+      expect(jsonStr).not.toContain('mySuperSecretPassword123');
+      expect(jsonStr).toContain('AKIA****************');
+      expect(jsonStr).toContain('[REDACTED_SECRET]');
     });
   });
 

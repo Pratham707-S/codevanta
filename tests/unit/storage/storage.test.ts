@@ -216,6 +216,86 @@ describe('Storage Engine — StateStore & RunStore', () => {
       expect(runs.length).toBe(2);
       expect(runs[0]?.runId).toBe('run-20260102-bbb'); // newer first
       expect(runs[1]?.runId).toBe('run-20260101-aaa');
+      expect(runs[0]?.summary?.critical).toBe(1);
+      expect(runs[1]?.summary?.critical).toBe(0);
+    });
+
+    it('retrieves scan history with getHistory() limited by count', async () => {
+      for (let i = 1; i <= 5; i++) {
+        await runStore.saveRun({
+          runId: `run-2026010${i}-test`,
+          projectName: 'app',
+          timestamp: `2026-01-0${i}T10:00:00.000Z`,
+          durationMs: 100 * i,
+          repositoryRoot: '/app',
+          filesScanned: i,
+          findingsCount: i,
+          summary: { critical: i % 2, high: 0, medium: 0, low: 0, info: 0 },
+          findings: [],
+        });
+      }
+
+      const history = await runStore.getHistory(3);
+      expect(history.length).toBe(3);
+      expect(history[0]?.runId).toBe('run-20260105-test');
+      expect(history[1]?.runId).toBe('run-20260104-test');
+      expect(history[2]?.runId).toBe('run-20260103-test');
+      expect(history[0]?.summary?.critical).toBe(1);
+      expect(history[1]?.summary?.critical).toBe(0);
+    });
+
+    it('looks up the previous run using getPreviousRun()', async () => {
+      const runA: ScanRunRecord = {
+        runId: 'run-seq-001',
+        projectName: 'app',
+        timestamp: '2026-01-01T10:00:00.000Z',
+        durationMs: 100,
+        repositoryRoot: '/app',
+        filesScanned: 5,
+        findingsCount: 2,
+        summary: { critical: 1, high: 1, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'F-1',
+            category: 'SECURITY',
+            severity: 'CRITICAL',
+            title: 'Vuln 1',
+            path: 'a.ts',
+            explanation: 'Desc 1',
+          },
+        ],
+      };
+
+      const runB: ScanRunRecord = {
+        runId: 'run-seq-002',
+        projectName: 'app',
+        timestamp: '2026-01-02T10:00:00.000Z',
+        durationMs: 120,
+        repositoryRoot: '/app',
+        filesScanned: 5,
+        findingsCount: 1,
+        summary: { critical: 0, high: 1, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'F-1',
+            category: 'SECURITY',
+            severity: 'CRITICAL',
+            title: 'Vuln 1',
+            path: 'a.ts',
+            explanation: 'Desc 1',
+          },
+        ],
+      };
+
+      await runStore.saveRun(runA);
+      await runStore.saveRun(runB);
+
+      const prevOfB = await runStore.getPreviousRun('run-seq-002');
+      expect(prevOfB).toBeDefined();
+      expect(prevOfB?.runId).toBe('run-seq-001');
+
+      const prevOfA = await runStore.getPreviousRun('run-seq-001');
+      expect(prevOfA).toBeNull();
     });
   });
 });

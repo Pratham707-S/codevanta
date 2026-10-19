@@ -6,11 +6,16 @@
  * Purpose: Report formatter: self-contained, secure HTML audit report output with warm AI beige & white aesthetic
  */
 
-import { ScanRunRecord } from '../storage/run-store.js';
+import { ScanRunRecord, StorageFinding, RunSummaryItem } from '../storage/run-store.js';
+import { ScanComparison, compareScans } from './scan-comparison.js';
+import { redactSecretEvidence, sanitizeFindingsForReport } from './redaction.js';
 
 export interface HtmlReportOptions {
   title?: string;
   includeEvidence?: boolean;
+  history?: RunSummaryItem[];
+  previousRecord?: ScanRunRecord;
+  comparison?: ScanComparison;
 }
 
 /**
@@ -31,6 +36,43 @@ export function escapeHtml(unsafe: unknown): string {
 }
 
 /**
+ * Provides an actionable remediation recommendation for a finding.
+ * Uses finding.recommendation if provided; otherwise synthesizes advice from category and rule ID.
+ */
+export function getRemediationRecommendation(finding: StorageFinding): string {
+  if (finding.recommendation && finding.recommendation.trim().length > 0) {
+    return finding.recommendation.trim();
+  }
+  const id = (finding.id || '').toUpperCase();
+  const category = (finding.category || '').toUpperCase();
+  const title = (finding.title || '').toLowerCase();
+
+  if (
+    id.startsWith('SEC-001') ||
+    category.includes('SECRET') ||
+    title.includes('secret') ||
+    title.includes('credential') ||
+    title.includes('key') ||
+    title.includes('token')
+  ) {
+    return 'Immediately revoke and rotate the exposed credential. Move sensitive values to secure environment variables (.env) or a secret manager (e.g., AWS Secrets Manager, HashiCorp Vault), and ensure configuration files containing secrets are added to .gitignore.';
+  }
+  if (id.startsWith('SEC-002') || category.includes('INJECTION') || title.includes('sql')) {
+    return 'Refactor query construction to use parameterized queries, prepared statements, or an Object-Relational Mapper (ORM) instead of raw string concatenation or template interpolation.';
+  }
+  if (id.startsWith('SEC-003') || title.includes('command') || title.includes('exec')) {
+    return 'Avoid passing unsanitized user inputs to shell execution functions. Prefer execFile or spawn with fixed arguments and an explicit allowlist of authorized commands.';
+  }
+  if (id.startsWith('SEC-004') || title.includes('catch') || title.includes('error')) {
+    return 'Avoid swallowing exceptions silently in empty catch blocks. Log the caught error with contextual details, handle graceful degradation, or rethrow the error for centralized error handling.';
+  }
+  if (title.includes('path') || title.includes('traversal')) {
+    return 'Validate and sanitize file paths using path normalization and enforce that resolved paths remain strictly within the designated root directory.';
+  }
+  return 'Review the affected code block against security best practices, apply defensive input validation, and verify behavior with automated unit and regression tests.';
+}
+
+/**
  * Formats a scan run record into a standalone, styled HTML report with warm AI beige & white styling.
  */
 export function formatHtmlReport(
@@ -39,8 +81,12 @@ export function formatHtmlReport(
 ): string {
   const pageTitle = escapeHtml(options.title || `RepoGuard Audit Report — ${record.projectName}`);
   const includeEvidence = options.includeEvidence !== false;
-  const findings = record.findings || [];
+
+  // Sanitize findings evidence to ensure zero secret leakage in HTML output
+  const rawFindings = record.findings || [];
+  const findings = sanitizeFindingsForReport(rawFindings);
   const summary = record.summary || { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  const totalFindings = record.findingsCount ?? findings.length;
 
   const severityBadgeClass: Record<string, string> = {
     CRITICAL: 'badge-critical',
@@ -58,6 +104,7 @@ export function formatHtmlReport(
     INFO: 'border-info',
   };
 
+  // 1. Findings Cards
   const findingsHtml = findings.length === 0
     ? `
       <div class="empty-state">
@@ -69,7 +116,15 @@ export function formatHtmlReport(
     : findings.map((f, i) => {
         const badgeClass = severityBadgeClass[f.severity] || 'badge-info';
         const borderClass = severityBorderClass[f.severity] || 'border-info';
-        const lineInfo = f.lineRange ? ` (Lines ${escapeHtml(f.lineRange.start)}–${escapeHtml(f.lineRange.end)})` : '';
+        
+        let lineInfo = '';
+        if (f.lineRange) {
+          if (f.lineRange.start === f.lineRange.end) {
+            lineInfo = ` (Line ${escapeHtml(f.lineRange.start)})`;
+          } else {
+            lineInfo = ` (Lines ${escapeHtml(f.lineRange.start)}–${escapeHtml(f.lineRange.end)})`;
+          }
+        }
         
         const confidenceVal = typeof f.confidence === 'number' 
           ? (f.confidence <= 1 ? f.confidence * 100 : f.confidence) 
@@ -79,8 +134,19 @@ export function formatHtmlReport(
           : '';
 
         const evidenceBlock = (includeEvidence && f.evidence)
-          ? `<pre class="evidence"><code>${escapeHtml(f.evidence)}</code></pre>`
+          ? `<pre class="evidence"><code>${escapeHtml(redactSecretEvidence(f.evidence))}</code></pre>`
           : '';
+
+        const recommendationText = getRemediationRecommendation(f);
+        const recommendationHtml = `
+          <div class="remediation-box">
+            <div class="remediation-header">
+              <span class="remediation-icon">💡</span>
+              <strong>Remediation Recommendation</strong>
+            </div>
+            <p>${escapeHtml(recommendationText)}</p>
+          </div>
+        `;
 
         return `
           <div class="finding-card ${borderClass}">
@@ -99,12 +165,147 @@ export function formatHtmlReport(
               <p>${escapeHtml(f.explanation)}</p>
             </div>
             ${evidenceBlock}
+            ${recommendationHtml}
           </div>
         `;
       }).join('\n');
 
-  // JSON serialization for client-side download button
-  const safeRecordJson = JSON.stringify(record).replace(/</g, '\\u003c');
+  // 2. Scan Comparison / Differential Timeline
+  let comparison = options.comparison;
+  if (!comparison && options.previousRecord) {
+    comparison = compareScans(record, options.previousRecord);
+  }
+
+  let comparisonHtml = '';
+  if (comparison) {
+    const newCount = comparison.newFindings.length;
+    const resolvedCount = comparison.resolvedFindings.length;
+    const unchangedCount = comparison.unchangedFindings.length;
+
+    let deltaLabel = 'No change';
+    let deltaClass = 'badge-info';
+    if (comparison.delta.total > 0) {
+      deltaLabel = `+${comparison.delta.total} findings`;
+      deltaClass = 'badge-critical';
+    } else if (comparison.delta.total < 0) {
+      deltaLabel = `${comparison.delta.total} findings`;
+      deltaClass = 'badge-low';
+    }
+
+    const newItems = comparison.newFindings.map((f) => {
+      const lineStr = f.lineRange ? `:${f.lineRange.start}` : '';
+      return `
+        <div class="timeline-item timeline-new">
+          <span class="timeline-badge badge-critical">NEW</span>
+          <span class="timeline-title"><strong>${escapeHtml(f.title)}</strong> in <code>${escapeHtml(f.path)}${lineStr}</code></span>
+          <span class="badge ${severityBadgeClass[f.severity] || 'badge-info'}">${escapeHtml(f.severity)}</span>
+        </div>
+      `;
+    }).join('');
+
+    const resolvedItems = comparison.resolvedFindings.map((f) => {
+      const lineStr = f.lineRange ? `:${f.lineRange.start}` : '';
+      return `
+        <div class="timeline-item timeline-resolved">
+          <span class="timeline-badge badge-resolved">RESOLVED</span>
+          <span class="timeline-title"><strong>${escapeHtml(f.title)}</strong> in <code>${escapeHtml(f.path)}${lineStr}</code></span>
+          <span class="badge ${severityBadgeClass[f.severity] || 'badge-info'}">${escapeHtml(f.severity)}</span>
+        </div>
+      `;
+    }).join('');
+
+    const unchangedSummary = unchangedCount > 0
+      ? `<div class="timeline-item timeline-unchanged">
+           <span class="timeline-badge badge-info">UNCHANGED</span>
+           <span class="timeline-title">${unchangedCount} finding(s) persisted from previous scan</span>
+         </div>`
+      : '';
+
+    comparisonHtml = `
+      <section class="dashboard-section">
+        <div class="section-header-row">
+          <h2 class="section-title">⏱️ Differential Scan Timeline</h2>
+          <span class="badge ${deltaClass}">${deltaLabel} vs previous run</span>
+        </div>
+        <div class="comparison-card">
+          <div class="comparison-meta">
+            <span><strong>Current:</strong> <code>${escapeHtml(comparison.currentRunId)}</code> (${escapeHtml(comparison.currentTimestamp)})</span>
+            <span><strong>Previous:</strong> <code>${escapeHtml(comparison.previousRunId)}</code> (${escapeHtml(comparison.previousTimestamp)})</span>
+          </div>
+          <div class="comparison-metrics">
+            <span class="metric-pill metric-new"><strong>${newCount}</strong> New</span>
+            <span class="metric-pill metric-resolved"><strong>${resolvedCount}</strong> Resolved</span>
+            <span class="metric-pill metric-unchanged"><strong>${unchangedCount}</strong> Unchanged</span>
+          </div>
+          <div class="timeline-list">
+            ${newItems}
+            ${resolvedItems}
+            ${unchangedSummary}
+            ${newCount === 0 && resolvedCount === 0 && unchangedCount === 0 ? '<p class="text-muted">No findings in either scan.</p>' : ''}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  // 3. Scan History Table
+  const history = options.history || [];
+  let historyHtml = '';
+  if (history.length > 0) {
+    const rows = history.map((item) => {
+      const isCurrent = item.runId === record.runId;
+      const rowClass = isCurrent ? 'class="current-run-row"' : '';
+      const curBadge = isCurrent ? ' <span class="badge badge-info">Current</span>' : '';
+      const s = item.summary || { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+
+      return `
+        <tr ${rowClass}>
+          <td><code>${escapeHtml(item.runId)}</code>${curBadge}</td>
+          <td>${escapeHtml(item.timestamp)}</td>
+          <td>${item.filesScanned ?? '-'}</td>
+          <td><strong>${item.findingsCount}</strong></td>
+          <td>
+            <div class="mini-badges">
+              ${s.critical > 0 ? `<span class="badge badge-critical">${s.critical} C</span>` : ''}
+              ${s.high > 0 ? `<span class="badge badge-high">${s.high} H</span>` : ''}
+              ${s.medium > 0 ? `<span class="badge badge-medium">${s.medium} M</span>` : ''}
+              ${s.low > 0 ? `<span class="badge badge-low">${s.low} L</span>` : ''}
+              ${s.critical === 0 && s.high === 0 && s.medium === 0 && s.low === 0 ? '<span class="badge badge-clean">0 issues</span>' : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('\n');
+
+    historyHtml = `
+      <section class="dashboard-section">
+        <h2 class="section-title">📊 Scan History & Trend</h2>
+        <div class="table-container">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Run ID</th>
+                <th>Timestamp</th>
+                <th>Files</th>
+                <th>Total Findings</th>
+                <th>Severity Breakdown</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }
+
+  // Safe serialized JSON for the download button with redacted evidence
+  const safeRecordForExport: ScanRunRecord = {
+    ...record,
+    findings,
+  };
+  const safeRecordJson = JSON.stringify(safeRecordForExport).replace(/</g, '\\u003c');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -128,7 +329,7 @@ export function formatHtmlReport(
       --high: #b45309;
       --high-bg: #fef8ee;
       --high-border: #fcd34d;
-      --medium: #b45309;
+      --medium: #d97706;
       --medium-bg: #fffbeb;
       --medium-border: #fde68a;
       --low: #1d4ed8;
@@ -138,6 +339,8 @@ export function formatHtmlReport(
       --info-bg: #f5f5f4;
       --info-border: #d6d3d1;
       --success: #15803d;
+      --success-bg: #f0fdf4;
+      --success-border: #bbf7d0;
       --primary: #201e1b;
       --primary-hover: #000000;
     }
@@ -152,7 +355,7 @@ export function formatHtmlReport(
       padding: 2.5rem 1.5rem;
       min-height: 100vh;
     }
-    .container { max-width: 960px; margin: 0 auto; }
+    .container { max-width: 980px; margin: 0 auto; }
     header {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -179,7 +382,7 @@ export function formatHtmlReport(
     }
     .header-title-area { flex: 1; min-width: 280px; }
     h1 {
-      font-size: 1.6rem;
+      font-size: 1.65rem;
       font-weight: 700;
       color: var(--text);
       letter-spacing: -0.02em;
@@ -227,6 +430,20 @@ export function formatHtmlReport(
       background: #f2eee6;
       border-color: #d8d2c4;
     }
+    .dashboard-section { margin-bottom: 2rem; }
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      margin-bottom: 0.85rem;
+    }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -243,19 +460,12 @@ export function formatHtmlReport(
     }
     .stat-val { font-size: 1.75rem; font-weight: 700; line-height: 1.1; margin-bottom: 0.2rem; }
     .stat-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-    .section-title {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 1rem;
-      letter-spacing: -0.01em;
-    }
     .finding-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.35rem 1.5rem;
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
       box-shadow: 0 1px 3px rgba(32, 30, 27, 0.03);
     }
     .border-critical { border-left: 4px solid var(--critical); }
@@ -273,12 +483,15 @@ export function formatHtmlReport(
       border-radius: 4px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      display: inline-block;
     }
     .badge-critical { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-border); }
     .badge-high { background: var(--high-bg); color: var(--high); border: 1px solid var(--high-border); }
     .badge-medium { background: var(--medium-bg); color: var(--medium); border: 1px solid var(--medium-border); }
     .badge-low { background: var(--low-bg); color: var(--low); border: 1px solid var(--low-border); }
     .badge-info { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
+    .badge-resolved { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .badge-clean { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
     .confidence-tag {
       font-size: 0.75rem;
       color: var(--text-muted);
@@ -315,7 +528,131 @@ export function formatHtmlReport(
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.82rem;
       color: #7dd3fc;
+      margin-bottom: 0.85rem;
     }
+    .remediation-box {
+      background: #fdfaf3;
+      border: 1px solid #e8dec8;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-size: 0.88rem;
+      color: #4a4133;
+    }
+    .remediation-header {
+      font-weight: 700;
+      color: #383024;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-bottom: 0.35rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .remediation-box p { line-height: 1.5; margin: 0; }
+    .comparison-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(32, 30, 27, 0.03);
+    }
+    .comparison-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .comparison-meta code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--canvas-subtle);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+    .comparison-metrics {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .metric-pill {
+      font-size: 0.85rem;
+      padding: 0.35rem 0.8rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .metric-new { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-border); }
+    .metric-resolved { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .metric-unchanged { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
+    .timeline-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .timeline-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.8rem;
+      background: var(--canvas);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .timeline-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+    .timeline-title { flex: 1; min-width: 200px; color: var(--text); }
+    .timeline-title code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--canvas-subtle);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.8rem;
+    }
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(32, 30, 27, 0.03);
+    }
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    .history-table th {
+      background: var(--canvas-subtle);
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+    }
+    .history-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text);
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+    .current-run-row { background: #faf7f0; }
+    .history-table code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--canvas-subtle);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .mini-badges { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .empty-state {
       background: var(--card-bg);
       border: 1px dashed var(--border);
@@ -336,8 +673,9 @@ export function formatHtmlReport(
     @media print {
       body { background: #fff; color: #000; padding: 0; }
       .header-actions { display: none; }
-      .stat-card, .finding-card { border: 1px solid #ccc; background: #fff; color: #000; box-shadow: none; }
+      .stat-card, .finding-card, .comparison-card, .table-container { border: 1px solid #ccc; background: #fff; color: #000; box-shadow: none; }
       pre.evidence { background: #f4f4f4; color: #000; border-color: #ccc; }
+      .remediation-box { background: #f9f9f9; border-color: #ddd; color: #111; }
     }
   </style>
 </head>
@@ -345,13 +683,14 @@ export function formatHtmlReport(
   <div class="container">
     <header>
       <div class="header-title-area">
-        <div class="brand-eyebrow">🛡️ RepoGuard Autonomous Reliability</div>
+        <div class="brand-eyebrow">🛡️ RepoGuard Autonomous Reliability & Security</div>
         <h1>${escapeHtml(record.projectName)}</h1>
         <div class="meta-bar">
+          <span><strong>Run ID:</strong> <code>${escapeHtml(record.runId)}</code></span>
           <span><strong>Timestamp:</strong> ${escapeHtml(record.timestamp)}</span>
           <span><strong>Files Scanned:</strong> ${record.filesScanned}</span>
           <span><strong>Duration:</strong> ${record.durationMs}ms</span>
-          <span><strong>Total Findings:</strong> ${findings.length}</span>
+          <span><strong>Total Findings:</strong> ${totalFindings}</span>
         </div>
       </div>
       <div class="header-actions">
@@ -361,6 +700,10 @@ export function formatHtmlReport(
     </header>
 
     <div class="stats-grid">
+      <div class="stat-card" style="border-top: 3px solid var(--primary)">
+        <div class="stat-val" style="color: var(--primary)">${totalFindings}</div>
+        <div class="stat-label">Total Findings</div>
+      </div>
       <div class="stat-card" style="border-top: 3px solid var(--critical)">
         <div class="stat-val" style="color: var(--critical)">${summary.critical}</div>
         <div class="stat-label">Critical</div>
@@ -383,13 +726,17 @@ export function formatHtmlReport(
       </div>
     </div>
 
-    <section>
-      <h2 class="section-title">Audit Findings & Evidence</h2>
+    ${comparisonHtml}
+
+    ${historyHtml}
+
+    <section class="dashboard-section">
+      <h2 class="section-title">Audit Findings & Remediation</h2>
       ${findingsHtml}
     </section>
 
     <footer>
-      Report generated autonomously by RepoGuard Platform. Confidential and verified.
+      Report generated autonomously by RepoGuard Platform. Confidential and verified evidence-backed audit.
     </footer>
   </div>
 

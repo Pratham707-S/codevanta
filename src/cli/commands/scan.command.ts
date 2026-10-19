@@ -146,7 +146,14 @@ export async function runScanAction(
     }
 
     const reportsDir = options.outputDir || resolve(targetDir, config.storage.reportsDir);
-    const builder = new ReportBuilder(record, { outputDir: reportsDir });
+    const history = await runStore.getHistory(10);
+    const previousRun = await runStore.getPreviousRun(record.runId);
+
+    const builder = new ReportBuilder(record, {
+      outputDir: reportsDir,
+      history,
+      previousRecord: previousRun ?? undefined,
+    });
     const savedReports = await builder.saveReports(reportsDir, formatsToSave);
 
     if (!isJsonOutput) {

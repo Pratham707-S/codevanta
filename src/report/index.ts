@@ -11,3 +11,5 @@ export * from './json-report.js';
 export * from './html-report.js';
 export * from './evidence-timeline.js';
 export * from './report-builder.js';
+export * from './scan-comparison.js';
+export * from './redaction.js';
