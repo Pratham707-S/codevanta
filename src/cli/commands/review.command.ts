@@ -8,7 +8,12 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { ApprovalGate, PatchCandidate, RiskLevel } from '../../repair/approval-gate.js';
+import {
+  RepairOrchestrator,
+  renderProposalPreview,
+  type RepairProposal,
+  type RiskLevel,
+} from '../../repair/index.js';
 import { RunStore } from '../../storage/run-store.js';
 
 export function registerReviewCommand(program: Command): void {
@@ -31,36 +36,58 @@ export function registerReviewCommand(program: Command): void {
       }
 
       const finding = findings[0]!;
-      const candidate: PatchCandidate = {
+      const normalizedPath = finding.path.replace(/\\/g, '/');
+      const diff = finding.evidence
+        ? `--- a/${normalizedPath}\n+++ b/${normalizedPath}\n@@ -1,2 +1,2 @@\n-// Vulnerable code pattern:\n-${finding.evidence.split('\n')[0]}\n+// Remediated by RepoGuard:\n+/* Sanitized verified implementation */\n`
+        : `--- a/${normalizedPath}\n+++ b/${normalizedPath}\n@@ -1,1 +1,1 @@\n-const unvalidatedInput = req.body;\n+const validatedInput = schema.parse(req.body);\n`;
+
+      const proposal: RepairProposal = {
         id: `REPAIR-${finding.id}`,
         findingId: finding.id,
-        filePath: finding.path,
+        title: finding.title,
+        filePath: normalizedPath,
+        diff,
         riskLevel: (finding.severity as RiskLevel) || 'HIGH',
         description: `Remediation patch synthesized for finding ${finding.id}: ${finding.title}`,
-        diff: finding.evidence
-          ? `@@ -1,4 +1,4 @@\n- // Vulnerable code pattern:\n- ${finding.evidence.split('\n')[0]}\n+ // Remediated by RepoGuard:\n+ /* Sanitized verified implementation */`
-          : `@@ -10,3 +10,3 @@\n- const unvalidatedInput = req.body;\n+ const validatedInput = schema.parse(req.body);`,
       };
 
-      const gate = new ApprovalGate({
-        autoApprove: options.yes,
-        dryRun: options.dryRun,
-      });
-
       if (options.dryRun) {
-        console.log(gate.formatPreview(candidate));
+        const preview = renderProposalPreview(
+          {
+            id: proposal.id,
+            findingId: proposal.findingId,
+            title: proposal.title,
+            filePath: proposal.filePath,
+            diff: proposal.diff,
+          },
+          { color: true }
+        );
+        console.log(preview);
       }
 
-      const decision = await gate.requestApproval(candidate);
+      const orchestrator = new RepairOrchestrator({
+        autoApprove: options.yes,
+        dryRun: options.dryRun,
+        repoRoot: process.cwd(),
+      });
 
-      if (decision.approved) {
+      const result = await orchestrator.orchestrate(proposal);
+
+      if (result.approved) {
         console.log(
-          chalk.green(`\n✔ Patch ${decision.patchId || candidate.id} explicitly APPROVED! Ready for sandbox verification.\n`)
+          chalk.green(`\n✔ Patch ${proposal.id} explicitly APPROVED! Ready for sandbox verification.`)
         );
-      } else if (decision.status === 'SKIPPED') {
+        if (result.applied) {
+          console.log(chalk.green(`✔ Patch successfully applied to disk: ${result.filePath}\n`));
+        } else {
+          console.log(chalk.red(`✖ Patch application failed: ${result.summary}\n`));
+        }
+      } else if (result.status === 'SKIPPED') {
         console.log(chalk.blue(`\nℹ Patch application was skipped (dry-run mode).\n`));
       } else {
-        console.log(chalk.yellow(`\n⚠ Patch was REJECTED (${decision.reason}). Working tree unchanged.\n`));
+        console.log(
+          chalk.yellow(`\n⚠ Patch was REJECTED (${result.approvalReason || result.summary}). Working tree unchanged.\n`)
+        );
       }
     });
 }
