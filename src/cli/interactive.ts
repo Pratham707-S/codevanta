@@ -21,6 +21,7 @@ import { runScanAction } from './commands/scan.command.js';
 import { runStatusAction } from './commands/status.command.js';
 import { runReportAction } from './commands/report.command.js';
 import { runInitAction } from './commands/init.command.js';
+import { ApprovalGate, PatchCandidate } from '../repair/index.js';
 
 export interface InteractiveOptions {
   version?: string;
@@ -212,8 +213,8 @@ export async function runFeatureMenuLoop(options: InteractiveOptions = {}): Prom
         },
         {
           value: 'repairs',
-          label: '🛠️  Verify Proposed Repairs',
-          hint: 'Automated sandbox verification status',
+          label: '🛠️  Review & Approve Repairs',
+          hint: 'Human-in-the-loop patch approval gate & diff preview',
         },
         {
           value: 'config',
@@ -346,9 +347,39 @@ export async function runFeatureMenuLoop(options: InteractiveOptions = {}): Prom
 
         case 'repairs': {
           p.note(
-            'Automated AST Patch Synthesis & Isolated Sandbox Verification are scheduled for Milestone 3.\n\nRepoGuard architecture strictly prevents applying unverified patches without cryptographic proof.',
+            'Automated AST Patch Synthesis & Isolated Sandbox Verification are scheduled for Milestone 3.\n\nRepoGuard architecture strictly requires affirmative human consent before any patch touches disk.',
             'Repair Verification Engine'
           );
+
+          const shouldReview = await p.confirm({
+            message: 'Launch Human-in-the-Loop Approval Gate to review patch candidate?',
+            initialValue: true,
+          });
+
+          if (!p.isCancel(shouldReview) && shouldReview) {
+            const candidate: PatchCandidate = {
+              id: 'REPAIR-2026-001',
+              findingId: 'SEC-SQLI-01',
+              filePath: 'src/api/users.controller.ts',
+              riskLevel: 'HIGH',
+              description:
+                'Sanitize user parameter using parameterized SQL query to eliminate SQL injection vulnerability.',
+              diff: `@@ -45,4 +45,4 @@\n- const query = \`SELECT * FROM users WHERE id = '\${req.params.id}'\`;\n- const result = await db.query(query);\n+ const query = 'SELECT * FROM users WHERE id = $1';\n+ const result = await db.query(query, [req.params.id]);`,
+            };
+
+            const gate = new ApprovalGate();
+            const decision = await gate.requestApproval(candidate);
+
+            if (decision.approved) {
+              p.log.success(
+                chalk.green(`Patch ${decision.patchId || candidate.id} explicitly APPROVED! Ready for sandbox verification.`)
+              );
+            } else if (decision.status === 'SKIPPED') {
+              p.log.info(chalk.blue(`Patch application was skipped (dry-run mode).`));
+            } else {
+              p.log.warn(chalk.yellow(`Patch was REJECTED (${decision.reason}). Working tree unchanged.`));
+            }
+          }
           break;
         }
 
@@ -454,8 +485,8 @@ export async function runInteractiveMode(options: InteractiveOptions = {}): Prom
     options: [
       {
         value: 'interactive',
-        label: '🚀 Interactive Mode',
-        hint: 'Guided menu to scan, review findings, and manage reports',
+        label: '🐇 Interactive Mode (Repository Mode)',
+        hint: 'Guided menu to scan repository, review findings, and manage reports',
       },
       {
         value: 'manual',

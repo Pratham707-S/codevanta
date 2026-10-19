@@ -7,12 +7,13 @@
  */
 
 import { resolve } from 'node:path';
-import { promises as fs } from 'node:fs';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadConfig } from '../../config/index.js';
 import { RunStore, StateStore, ScanRunRecord } from '../../storage/index.js';
 import { ReportBuilder } from '../../report/index.js';
+import { RuleRunner } from '../../analysis/rules/index.js';
+import { walkSourceFiles } from '../../repository/index.js';
 import {
   formatStep,
   formatSuccess,
@@ -73,30 +74,42 @@ export async function runScanAction(
       spinner = createSpinner('Discovering repository files...').start();
     }
 
-    // 2. Discover files (excluding ignored directories)
-    let filesScanned = 0;
-    try {
-      const entries = await fs.readdir(targetDir, { recursive: true });
-      filesScanned = entries.filter((e) => {
-        const p = String(e);
-        return !p.includes('node_modules') && !p.includes('.git') && !p.includes('dist');
-      }).length;
-    } catch {
-      filesScanned = 1;
-    }
+    // 2. Discover and ingest candidate source files safely
+    const walkResult = await walkSourceFiles(targetDir, {
+      maxFileSize: config.scan.maxFileSize,
+    });
+    const candidateFiles = walkResult.files;
+    const filesScanned = candidateFiles.length;
+
+    // 3. Execute RuleRunner against candidate files
+    const runner = new RuleRunner();
+    const findings = await runner.evaluateFiles(candidateFiles);
+    const hasSecrets = findings.some((f) => f.category.includes('Secret') || f.id.startsWith('SEC-001'));
 
     if (!isJsonOutput && spinner) {
       const progressBar = formatProgressBar(filesScanned, Math.max(filesScanned, 1));
       spinner.succeed(formatStep(2, 4, `Ingested ${chalk.bold(filesScanned)} source files safely ${progressBar}`));
-      console.log(formatStep(3, 4, `Secret redaction active: ${chalk.green('100% tokens protected')}`));
+      if (hasSecrets) {
+        console.log(formatStep(3, 4, `Secret redaction active: ${chalk.green('Protected credentials in findings evidence')}`));
+      } else {
+        console.log(formatStep(3, 4, `Static security analysis active: ${chalk.cyan('4 deterministic rules evaluated')}`));
+      }
       spinner = createSpinner('Synthesizing audit findings & generating reports...').start();
     }
 
-    // 3. Prepare scan record
-    const runStore = new RunStore();
-    const stateStore = new StateStore();
+    // 4. Prepare scan record
+    const runStore = new RunStore(config.storage.stateDir, targetDir);
+    const stateStore = new StateStore(config.storage.stateDir, targetDir);
     const runId = runStore.generateRunId();
     const durationMs = Date.now() - startTime;
+
+    const summary = {
+      critical: findings.filter((f) => f.severity === 'CRITICAL').length,
+      high: findings.filter((f) => f.severity === 'HIGH').length,
+      medium: findings.filter((f) => f.severity === 'MEDIUM').length,
+      low: findings.filter((f) => f.severity === 'LOW').length,
+      info: findings.filter((f) => f.severity === 'INFO').length,
+    };
 
     const record: ScanRunRecord = {
       runId,
@@ -104,19 +117,13 @@ export async function runScanAction(
       projectName: config.project.name,
       repositoryRoot: targetDir,
       filesScanned,
-      findingsCount: 0,
+      findingsCount: findings.length,
       durationMs,
-      summary: {
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0,
-        info: 0,
-      },
-      findings: [],
+      summary,
+      findings,
     };
 
-    // 4. Save to Storage and generate reports
+    // 5. Save to Storage and generate reports
     await runStore.saveRun(record);
     await stateStore.recordRun(record);
 
@@ -151,12 +158,33 @@ export async function runScanAction(
       console.log('');
       console.log(formatSummaryTable(record.summary));
       console.log('');
-      console.log(formatSuccess(`Scan completed cleanly in ${durationMs}ms with 0 critical findings!`));
+
+      if (walkResult.unreadableFiles.length > 0) {
+        console.log(
+          chalk.yellow(`  ⚠ Warning: ${walkResult.unreadableFiles.length} file(s) could not be read due to permissions or I/O errors.`)
+        );
+      }
+
+      if (findings.length === 0) {
+        if (walkResult.unreadableFiles.length > 0) {
+          console.log(chalk.yellow(`  ⚠ Scan completed in ${durationMs}ms: 0 findings in ${filesScanned} readable files (${walkResult.unreadableFiles.length} unreadable).`));
+        } else {
+          console.log(formatSuccess(`Scan completed cleanly in ${durationMs}ms with 0 critical findings!`));
+        }
+      } else {
+        console.log(
+          chalk.yellow.bold(
+            `  ⚠ Scan completed in ${durationMs}ms: ${findings.length} finding(s) detected (${summary.critical} critical, ${summary.high} high). Run 'repoguard review' to inspect.`
+          )
+        );
+      }
 
       if (savedReports.htmlPath) {
         const uri = formatFileUri(savedReports.htmlPath);
-        console.log(`  🌐 HTML Report: ${chalk.underline.cyan(uri)}`);
-        console.log(`     ${chalk.dim('(Cmd + Click link above to open in browser)')}`);
+        const encodedUri = `file://${encodeURI(savedReports.htmlPath)}`;
+        const clickable = `\u001b]8;;${encodedUri}\u001b\\${chalk.underline.cyan(uri)}\u001b]8;;\u001b\\`;
+        console.log(`  🌐 HTML Report: ${clickable}`);
+        console.log(`     ${chalk.dim('(Cmd + Click link above or run with --open to launch browser)')}`);
 
         if (options.open) {
           openInBrowser(savedReports.htmlPath);
