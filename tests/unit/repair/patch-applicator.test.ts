@@ -7,7 +7,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, writeFile, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile, stat, symlink, mkdir, chmod } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -18,13 +19,16 @@ import {
 
 describe('PatchApplicator & applyHunksToString', () => {
   let tempDir: string;
+  let outsideDir: string;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'repoguard-patch-test-'));
+    outsideDir = await mkdtemp(join(tmpdir(), 'repoguard-outside-test-'));
   });
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
+    await rm(outsideDir, { recursive: true, force: true });
   });
 
   describe('applyHunksToString', () => {
@@ -198,6 +202,131 @@ describe('PatchApplicator & applyHunksToString', () => {
       const result = await applyPatch(diff, { repoRoot: tempDir });
       expect(result.success).toBe(false);
       expect(result.errors[0]).toMatch(/prohibited|escapes|unsafe/i);
+    });
+
+    it('rejects modifying a file through an external symlink', async () => {
+      const targetOutside = join(outsideDir, 'secret.env');
+      await writeFile(targetOutside, 'SECRET_KEY=12345\n');
+
+      const symlinkInRepo = join(tempDir, 'symlinked.env');
+      await symlink(targetOutside, symlinkInRepo);
+
+      const diff = `--- a/symlinked.env
++++ b/symlinked.env
+@@ -1,1 +1,1 @@
+-SECRET_KEY=12345
++SECRET_KEY=attacked`;
+
+      const result = await applyPatch(diff, { repoRoot: tempDir });
+      expect(result.success).toBe(false);
+      expect(result.errors.some((err) => /symlink|escapes/i.test(err))).toBe(true);
+
+      // Verify external target was untouched
+      const outsideContent = await readFile(targetOutside, 'utf8');
+      expect(outsideContent).toBe('SECRET_KEY=12345\n');
+    });
+
+    it('rejects creating a new file under a symlinked parent directory pointing outside repo', async () => {
+      const symlinkParentInRepo = join(tempDir, 'external-dir');
+      await symlink(outsideDir, symlinkParentInRepo, 'dir');
+
+      const diff = `--- /dev/null
++++ b/external-dir/evil.txt
+@@ -0,0 +1,1 @@
++injected payload`;
+
+      const result = await applyPatch(diff, { repoRoot: tempDir });
+      expect(result.success).toBe(false);
+      expect(result.errors.some((err) => /symlink|escapes/i.test(err))).toBe(true);
+
+      // Verify no file was created in outsideDir
+      expect(existsSync(join(outsideDir, 'evil.txt'))).toBe(false);
+    });
+
+    it('applies a normal valid in-repository path with subdirectories safely', async () => {
+      await mkdir(join(tempDir, 'src', 'components'), { recursive: true });
+      const compPath = join(tempDir, 'src', 'components', 'Button.tsx');
+      await writeFile(compPath, 'export const Button = () => <button>Click</button>;\n');
+
+      const diff = `--- a/src/components/Button.tsx
++++ b/src/components/Button.tsx
+@@ -1,1 +1,1 @@
+-export const Button = () => <button>Click</button>;
++export const Button = () => <button>Click Me</button>;`;
+
+      const result = await applyPatch(diff, { repoRoot: tempDir });
+      expect(result.success).toBe(true);
+
+      const updated = await readFile(compPath, 'utf8');
+      expect(updated).toBe('export const Button = () => <button>Click Me</button>;\n');
+    });
+
+    it('preserves original file permissions when rolling back a failed transaction', async () => {
+      const file1 = join(tempDir, 'executable.sh');
+      const file2 = join(tempDir, 'regular.txt');
+
+      await writeFile(file1, '#!/bin/bash\necho "hello"\n');
+      await chmod(file1, 0o755);
+
+      await writeFile(file2, 'initial content');
+
+      const statBefore = await stat(file1);
+      const originalMode = statBefore.mode & 0o777;
+
+      const diff = `--- a/executable.sh
++++ b/executable.sh
+@@ -1,2 +1,2 @@
+ #!/bin/bash
+-echo "hello"
++echo "world"
+--- a/regular.txt
++++ b/regular.txt
+@@ -1,1 +1,1 @@
+-nonexistent line
++updated content`;
+
+      const result = await applyPatch(diff, { repoRoot: tempDir });
+      expect(result.success).toBe(false);
+
+      const statAfter = await stat(file1);
+      const restoredMode = statAfter.mode & 0o777;
+      expect(restoredMode).toBe(originalMode);
+
+      const contentAfter = await readFile(file1, 'utf8');
+      expect(contentAfter).toBe('#!/bin/bash\necho "hello"\n');
+    });
+
+    it('cleans up newly created directories without deleting pre-existing directories on rollback', async () => {
+      const preexistingDir = join(tempDir, 'preexisting');
+      await mkdir(preexistingDir, { recursive: true });
+      await writeFile(join(preexistingDir, 'keep.txt'), 'keep me');
+
+      const targetFailFile = join(tempDir, 'fail.txt');
+      await writeFile(targetFailFile, 'fail target');
+
+      // File 1 creates preexisting/newsub1/newsub2/created.txt
+      // File 2 fails on fail.txt
+      const diff = `--- /dev/null
++++ b/preexisting/newsub1/newsub2/created.txt
+@@ -0,0 +1,1 @@
++temporary new file
+--- a/fail.txt
++++ b/fail.txt
+@@ -1,1 +1,1 @@
+-mismatch context
++failed`;
+
+      const result = await applyPatch(diff, { repoRoot: tempDir });
+      expect(result.success).toBe(false);
+
+      // Pre-existing directory and its files must be preserved!
+      expect(existsSync(preexistingDir)).toBe(true);
+      expect(existsSync(join(preexistingDir, 'keep.txt'))).toBe(true);
+
+      // Newly created subdirectories must be pruned!
+      expect(existsSync(join(preexistingDir, 'newsub1', 'newsub2', 'created.txt'))).toBe(false);
+      expect(existsSync(join(preexistingDir, 'newsub1', 'newsub2'))).toBe(false);
+      expect(existsSync(join(preexistingDir, 'newsub1'))).toBe(false);
     });
   });
 

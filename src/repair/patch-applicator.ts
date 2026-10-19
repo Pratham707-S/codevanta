@@ -6,8 +6,8 @@
  * Purpose: Patch applicator: safely apply approved patches to target workspace
  */
 
-import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { readFile, writeFile, unlink, mkdir, rmdir, stat, lstat, realpath, chmod } from 'node:fs/promises';
+import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import {
   parseUnifiedDiff,
   validateSafePath,
@@ -45,6 +45,105 @@ interface FileBackup {
   path: string;
   exists: boolean;
   content?: string;
+  mode?: number;
+}
+
+/**
+ * Verifies that a target path and its existing ancestor directories do not resolve
+ * outside the designated repository root via symlinks.
+ *
+ * Limitation note: This verification inspects filesystem state immediately before operations.
+ * It mitigates pre-existing symlink traversals. Complete TOCTOU race immunity against an
+ * adversarial local process concurrently replacing directories requires kernel-level
+ * O_NOFOLLOW file descriptors, which are platform-dependent.
+ */
+export async function verifySymlinkSafety(
+  targetAbsPath: string,
+  repoRoot: string
+): Promise<{ safe: boolean; error?: string }> {
+  let realRoot: string;
+  try {
+    realRoot = await realpath(repoRoot);
+  } catch {
+    realRoot = resolve(repoRoot);
+  }
+
+  // 1. If target file already exists (or is a symlink), inspect its realpath
+  try {
+    const targetLstat = await lstat(targetAbsPath);
+    const realTarget = await realpath(targetAbsPath);
+    const rel = relative(realRoot, realTarget);
+    if (rel.startsWith('..') || isAbsolute(rel)) {
+      return {
+        safe: false,
+        error: `Target path resolves outside repository root via symlink to "${realTarget}".`,
+      };
+    }
+    if (targetLstat.isSymbolicLink() && (rel.startsWith('..') || isAbsolute(rel))) {
+      return {
+        safe: false,
+        error: `Target path is a symlink pointing outside repository root: "${targetAbsPath}" -> "${realTarget}".`,
+      };
+    }
+  } catch (err: unknown) {
+    const error = err as NodeJS.ErrnoException;
+    if (error.code !== 'ENOENT') {
+      return { safe: false, error: `Filesystem error inspecting target path: ${error.message}` };
+    }
+  }
+
+  // 2. For nonexistent files or newly created subdirectories, check the closest existing parent directory
+  let currentDir = dirname(targetAbsPath);
+  while (currentDir.length >= realRoot.length) {
+    try {
+      const realAncestor = await realpath(currentDir);
+      const rel = relative(realRoot, realAncestor);
+      if (rel.startsWith('..') || isAbsolute(rel)) {
+        return {
+          safe: false,
+          error: `Parent directory "${currentDir}" resolves outside repository root via symlink to "${realAncestor}".`,
+        };
+      }
+      break; // Found existing ancestor and it safely resides within realRoot
+    } catch (err: unknown) {
+      const error = err as NodeJS.ErrnoException;
+      if (error.code === 'ENOENT') {
+        const parent = dirname(currentDir);
+        if (parent === currentDir) break;
+        currentDir = parent;
+      } else {
+        return { safe: false, error: `Filesystem error inspecting directory tree: ${error.message}` };
+      }
+    }
+  }
+
+  return { safe: true };
+}
+
+/**
+ * Detects directories that do not yet exist on disk under repoRoot.
+ */
+async function findNonexistentDirectories(
+  targetDir: string,
+  repoRoot: string
+): Promise<string[]> {
+  const dirsToCreate: string[] = [];
+  let curr = targetDir;
+  const absRoot = resolve(repoRoot);
+
+  while (curr.length >= absRoot.length && curr !== absRoot) {
+    try {
+      await stat(curr);
+      break; // Directory exists
+    } catch {
+      dirsToCreate.unshift(curr); // Parent before child
+      const parent = dirname(curr);
+      if (parent === curr) break;
+      curr = parent;
+    }
+  }
+
+  return dirsToCreate;
 }
 
 /**
@@ -163,13 +262,14 @@ export class PatchApplicator {
 
     const appliedFiles: FilePatchResult[] = [];
     const backups: FileBackup[] = [];
+    const createdDirs: string[] = [];
     const errors: string[] = [];
 
     let overallSuccess = true;
 
     try {
       for (const file of parsedFiles) {
-        const fileResult = await this.applySingleFile(file, repoRoot, opts, backups);
+        const fileResult = await this.applySingleFile(file, repoRoot, opts, backups, createdDirs);
         appliedFiles.push(fileResult);
 
         if (!fileResult.success) {
@@ -186,7 +286,7 @@ export class PatchApplicator {
 
     // Rollback if any file failed and dryRun was false
     if (!overallSuccess && !opts.dryRun) {
-      await this.rollback(backups);
+      await this.rollback(backups, createdDirs);
       for (const res of appliedFiles) {
         if (res.backupCreated) {
           res.rolledBack = true;
@@ -209,7 +309,8 @@ export class PatchApplicator {
     file: ParsedPatchFile,
     repoRoot: string,
     opts: PatchApplicatorOptions,
-    backups: FileBackup[]
+    backups: FileBackup[],
+    createdDirs: string[]
   ): Promise<FilePatchResult> {
     const targetRelPath = file.isDeletedFile
       ? file.oldPath
@@ -232,6 +333,22 @@ export class PatchApplicator {
 
     const targetAbsPath = resolve(repoRoot, pathValidation.normalizedPath || targetRelPath);
 
+    // Verify symlink containment safety
+    const symlinkCheck = await verifySymlinkSafety(targetAbsPath, repoRoot);
+    if (!symlinkCheck.safe) {
+      return {
+        filePath: targetRelPath,
+        success: false,
+        backupCreated: false,
+        rolledBack: false,
+        error: `Unsafe path rejected: ${symlinkCheck.error}`,
+        hunksApplied: 0,
+        totalHunks: file.hunks.length,
+        isNewFile: file.isNewFile,
+        isDeletedFile: file.isDeletedFile,
+      };
+    }
+
     try {
       // 1. Creation of new file
       if (file.isNewFile) {
@@ -249,6 +366,12 @@ export class PatchApplicator {
         backups.push({ path: targetAbsPath, exists: false });
 
         if (!opts.dryRun) {
+          const newDirs = await findNonexistentDirectories(dirname(targetAbsPath), repoRoot);
+          for (const dir of newDirs) {
+            if (!createdDirs.includes(dir)) {
+              createdDirs.push(dir);
+            }
+          }
           await mkdir(dirname(targetAbsPath), { recursive: true });
           await writeFile(targetAbsPath, newContent, 'utf8');
         }
@@ -267,7 +390,10 @@ export class PatchApplicator {
       // 2. Deletion of existing file
       if (file.isDeletedFile) {
         let content = '';
+        let originalMode: number | undefined;
         try {
+          const fileStat = await stat(targetAbsPath);
+          originalMode = fileStat.mode;
           content = await readFile(targetAbsPath, 'utf8');
         } catch {
           // File does not exist
@@ -283,7 +409,7 @@ export class PatchApplicator {
           };
         }
 
-        backups.push({ path: targetAbsPath, exists: true, content });
+        backups.push({ path: targetAbsPath, exists: true, content, mode: originalMode });
 
         if (!opts.dryRun) {
           await unlink(targetAbsPath);
@@ -302,7 +428,10 @@ export class PatchApplicator {
 
       // 3. Modification of existing file
       let originalContent = '';
+      let originalMode: number | undefined;
       try {
+        const fileStat = await stat(targetAbsPath);
+        originalMode = fileStat.mode;
         originalContent = await readFile(targetAbsPath, 'utf8');
       } catch (err: unknown) {
         return {
@@ -316,7 +445,7 @@ export class PatchApplicator {
         };
       }
 
-      backups.push({ path: targetAbsPath, exists: true, content: originalContent });
+      backups.push({ path: targetAbsPath, exists: true, content: originalContent, mode: originalMode });
 
       const { updatedContent, hunksApplied } = applyHunksToString(originalContent, file.hunks, {
         strict: opts.strict,
@@ -351,7 +480,8 @@ export class PatchApplicator {
   /**
    * Rolls back all modified/created files to their state prior to the failed patch application.
    */
-  private async rollback(backups: FileBackup[]): Promise<void> {
+  private async rollback(backups: FileBackup[], createdDirs: string[] = []): Promise<void> {
+    // 1. Rollback files
     for (let i = backups.length - 1; i >= 0; i--) {
       const backup = backups[i]!;
       try {
@@ -359,12 +489,25 @@ export class PatchApplicator {
           // File was newly created; remove it
           await unlink(backup.path).catch(() => {});
         } else if (backup.content !== undefined) {
-          // File was modified or deleted; restore original content
+          // File was modified or deleted; restore original content and original permissions
           await mkdir(dirname(backup.path), { recursive: true });
-          await writeFile(backup.path, backup.content, 'utf8');
+          await writeFile(backup.path, backup.content, { encoding: 'utf8', mode: backup.mode });
+          if (backup.mode !== undefined) {
+            await chmod(backup.path, backup.mode).catch(() => {});
+          }
         }
       } catch {
         // Rollback best-effort
+      }
+    }
+
+    // 2. Clean up newly created empty directories (deepest child first)
+    for (let i = createdDirs.length - 1; i >= 0; i--) {
+      const dir = createdDirs[i]!;
+      try {
+        await rmdir(dir);
+      } catch {
+        // rmdir only removes empty directories; safely ignore if not empty
       }
     }
   }
@@ -380,4 +523,3 @@ export async function applyPatch(
   const applicator = new PatchApplicator();
   return applicator.applyPatch(diffText, options);
 }
-
