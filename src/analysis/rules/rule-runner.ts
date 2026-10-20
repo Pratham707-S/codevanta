@@ -9,6 +9,7 @@
 import { SecurityRule, RuleFileContext } from './rule.contract.js';
 import { STANDARD_RULES, redactSecretSnippet } from './suspicious-patterns.js';
 import { StorageFinding } from '../../storage/run-store.js';
+import { detectFileLanguage } from '../../repository/index.js';
 
 export interface RuleRunnerOptions {
   rules?: SecurityRule[];
@@ -34,10 +35,12 @@ export class RuleRunner {
    */
   public async evaluateFile(context: RuleFileContext): Promise<StorageFinding[]> {
     const fileFindings: StorageFinding[] = [];
+    const language = context.language ?? detectFileLanguage(context.filePath || context.relativePath);
+    const resolvedContext: RuleFileContext = { ...context, language };
 
     for (const rule of this.rules) {
       try {
-        const results = await rule.evaluate(context);
+        const results = await rule.evaluate(resolvedContext);
         for (const finding of results) {
           if (finding.evidence) {
             finding.evidence = redactSecretSnippet(finding.evidence);
@@ -56,17 +59,19 @@ export class RuleRunner {
    * Evaluates rules across a collection of source files and normalizes findings.
    */
   public async evaluateFiles(
-    files: Array<{ filePath: string; relativePath: string; content: string }>
+    files: Array<{ filePath: string; relativePath: string; content: string; language?: string }>
   ): Promise<StorageFinding[]> {
     const rawFindings: StorageFinding[] = [];
 
     for (const file of files) {
       const lines = file.content.split('\n');
+      const language = file.language ?? detectFileLanguage(file.filePath || file.relativePath);
       const findings = await this.evaluateFile({
         filePath: file.filePath,
         relativePath: file.relativePath,
         content: file.content,
         lines,
+        language,
       });
       rawFindings.push(...findings);
     }

@@ -13,6 +13,7 @@ export interface RuleFileContext {
   relativePath: string;
   content: string;
   lines: string[];
+  language?: string;
 }
 
 export interface SecurityRule {
