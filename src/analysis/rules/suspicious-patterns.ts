@@ -8,6 +8,7 @@
 
 import { SecurityRule, RuleFileContext } from './rule.contract.js';
 import { StorageFinding } from '../../storage/run-store.js';
+import { detectFileLanguage } from '../../repository/discovery.js';
 
 /**
  * Redacts recognized secrets from evidence snippets to prevent credential exposure in reports and storage.
@@ -34,11 +35,178 @@ function extractSnippet(lines: string[], lineIndex: number, contextLines = 2): s
 }
 
 /**
- * Helper to determine whether a line is a non-code comment line.
+ * Lexical state machine to track multiline and single-line comment context.
+ *
+ * NOTE: This is a fast, maintainable lexical tracker designed for line-by-line scanning,
+ * not a full AST language parser. It tracks C-style multiline block comments (/* ... *\/)
+ * and Python triple-quoted docstrings (""" / ''').
+ * Limitations: Complex inline regex literals containing /*, string literals spanning
+ * multiple lines, or macro expansions in C are not tracked by AST. Where language syntax is
+ * ambiguous, RepoGuard chooses to evaluate the line rather than skip it (preferring to avoid false negatives).
  */
-function isCommentOnly(line: string): boolean {
+export class CommentTracker {
+  private inBlockComment = false;
+  private inTripleQuote: '"""' | "'''" | null = null;
+  private readonly language?: string;
+
+  constructor(language?: string) {
+    this.language = language;
+  }
+
+  /**
+   * Evaluates whether a line contains solely comments/whitespace or active code.
+   * Updates internal state for multiline comments.
+   * Returns true if the line is purely comment/docstring, false if active code is present.
+   */
+  public isComment(line: string): boolean {
+    const trimmed = line.trim();
+    if (trimmed === '') {
+      return false;
+    }
+
+    // Shebang lines (e.g. #!/usr/bin/env node) are always non-code comments
+    if (trimmed.startsWith('#!')) {
+      return true;
+    }
+
+    // Single-line C-style comment (//) - recognized universally as non-code
+    if (trimmed.startsWith('//')) {
+      return true;
+    }
+
+    // 1. C-Style Block Comment Tracking (/* ... */)
+    // Universal across C, C++, Java, JS, TS, Go, Rust, C#, PHP, SQL, and polyglot files
+    if (this.inBlockComment) {
+      const closeIdx = trimmed.indexOf('*/');
+      if (closeIdx !== -1) {
+        this.inBlockComment = false;
+        // If active code follows the closing delimiter (e.g. '*/ doSomething();')
+        const after = trimmed.slice(closeIdx + 2).trim();
+        return after === '' || after.startsWith('//');
+      }
+      return true;
+    }
+
+    if (trimmed.startsWith('/*')) {
+      const closeIdx = trimmed.indexOf('*/', 2);
+      if (closeIdx !== -1) {
+        // Block comment opens and closes on the same line
+        const after = trimmed.slice(closeIdx + 2).trim();
+        return after === '' || after.startsWith('//');
+      }
+      // Block comment opens and stays open
+      this.inBlockComment = true;
+      return true;
+    }
+
+    // If block comment opened after active code on this line (e.g. 'const x = 1; /* start')
+    const openBlockIdx = trimmed.lastIndexOf('/*');
+    if (openBlockIdx !== -1) {
+      const closeIdx = trimmed.indexOf('*/', openBlockIdx + 2);
+      if (closeIdx === -1) {
+        this.inBlockComment = true;
+      }
+    }
+
+    // 2. Python Triple-Quoted Docstring Tracking
+    if (this.language === 'Python') {
+      if (this.inTripleQuote) {
+        const delimiter = this.inTripleQuote;
+        const closeIdx = trimmed.indexOf(delimiter);
+        if (closeIdx !== -1) {
+          this.inTripleQuote = null;
+          // Check if there is active code after the closing delimiter
+          const after = trimmed.slice(closeIdx + 3).trim();
+          return after === '' || after.startsWith('#');
+        }
+        return true;
+      }
+
+      // Check if a standalone triple-quoted docstring starts on this line
+      if (trimmed.startsWith('"""') || trimmed.startsWith("'''")) {
+        const delimiter = trimmed.startsWith('"""') ? '"""' : "'''";
+        const rest = trimmed.slice(3);
+        const closeIdx = rest.indexOf(delimiter);
+        if (closeIdx !== -1) {
+          // Closed on same line: e.g. """docstring"""
+          const after = rest.slice(closeIdx + 3).trim();
+          return after === '' || after.startsWith('#');
+        }
+        // Opened and continues to next lines
+        this.inTripleQuote = delimiter;
+        return true;
+      }
+
+      // Check if triple quote opens after active code on this line (e.g. val = """doc)
+      if (trimmed.includes('"""') || trimmed.includes("'''")) {
+        const delimiter = trimmed.includes('"""') ? '"""' : "'''";
+        const openIdx = trimmed.indexOf(delimiter);
+        const closeIdx = trimmed.indexOf(delimiter, openIdx + 3);
+        if (closeIdx === -1) {
+          this.inTripleQuote = delimiter;
+        }
+        return false;
+      }
+
+      // Python single-line comment (#)
+      if (trimmed.startsWith('#')) {
+        return true;
+      }
+
+      return false;
+    }
+
+    // 3. SQL Line Comment (-- comment)
+    // ONLY SQL treats '--' as a comment. In JS/C/Java, '--count;' is a pre-decrement operator!
+    if (this.language === 'SQL' && trimmed.startsWith('--')) {
+      return true;
+    }
+
+    // 4. Hash (#) comments for Ruby, Shell, YAML, etc.
+    if (trimmed.startsWith('#')) {
+      // In JavaScript and TypeScript, # denotes private class fields/methods (#field)
+      if (this.language === 'JavaScript' || this.language === 'TypeScript') {
+        return false;
+      }
+      return true;
+    }
+
+    return false;
+  }
+}
+
+/**
+ * Creates a stateful line-by-line comment evaluator for a given language.
+ */
+export function createCommentTracker(language?: string): (line: string) => boolean {
+  const tracker = new CommentTracker(language);
+  return (line: string) => tracker.isComment(line);
+}
+
+/**
+ * Helper to determine whether a line is a non-code comment line statelessly.
+ */
+export function isCommentOnly(line: string, language?: string): boolean {
+  const tracker = new CommentTracker(language);
+  if (tracker.isComment(line)) {
+    return true;
+  }
   const trimmed = line.trim();
-  return trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*');
+  const isCStyle = !language || [
+    'JavaScript',
+    'TypeScript',
+    'Java',
+    'C',
+    'C++',
+    'C#',
+    'Go',
+    'Rust',
+    'PHP',
+  ].includes(language);
+  if (isCStyle && (trimmed.startsWith('* ') || trimmed === '*' || trimmed.startsWith('*/'))) {
+    return true;
+  }
+  return false;
 }
 
 // 1. SEC-001: Hardcoded Secrets & Token Exposure
@@ -51,10 +219,17 @@ export const hardcodedSecretsRule: SecurityRule = {
   description: 'Detected high-entropy access key, private token, or hardcoded credential in source code.',
   evaluate(context: RuleFileContext): StorageFinding[] {
     const findings: StorageFinding[] = [];
+    const language = context.language ?? detectFileLanguage(context.filePath || context.relativePath);
+    const isComment = createCommentTracker(language);
     const ignoreKeywords = ['example', 'dummy', 'placeholder', 'fake', 'mock', 'todo', 'your_key', 'process.env'];
 
     for (let i = 0; i < context.lines.length; i++) {
       const line = context.lines[i]!;
+
+      // Skip lines that are purely comments/documentation (AWS, GitHub, and generic secrets)
+      if (isComment(line)) {
+        continue;
+      }
 
       // AWS Access Key ID
       if (/(?:^|[^A-Z0-9])(AKIA[0-9A-Z]{16,28})(?:[^A-Z0-9]|$)/.test(line)) {
@@ -89,25 +264,23 @@ export const hardcodedSecretsRule: SecurityRule = {
       }
 
       // Generic High-Entropy API Secret Assignment
-      if (!isCommentOnly(line)) {
-        const secretAssignment = /(?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret)\s*[:=]\s*["']([a-zA-Z0-9_\-]{20,})["']/i.exec(line);
-        if (secretAssignment && secretAssignment[1]) {
-          const val = secretAssignment[1].toLowerCase();
-          const isIgnored = ignoreKeywords.some((kw) => val.includes(kw));
-          if (!isIgnored) {
-            findings.push({
-              id: `SEC-001-${context.relativePath.replace(/[\\/]/g, '-')}-L${i + 1}-secret`,
-              category: this.category,
-              severity: this.severity,
-              title: 'Hardcoded High-Entropy API Secret Assignment',
-              path: context.relativePath,
-              lineRange: { start: i + 1, end: i + 1 },
-              explanation: 'High-entropy secret or password variable detected in source code. Secret values must be read from environment variables or a secrets manager.',
-              evidence: redactSecretSnippet(extractSnippet(context.lines, i)),
-              confidence: 0.90,
-              status: 'UNRESOLVED',
-            });
-          }
+      const secretAssignment = /(?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret)\s*[:=]\s*["']([a-zA-Z0-9_\-]{20,})["']/i.exec(line);
+      if (secretAssignment && secretAssignment[1]) {
+        const val = secretAssignment[1].toLowerCase();
+        const isIgnored = ignoreKeywords.some((kw) => val.includes(kw));
+        if (!isIgnored) {
+          findings.push({
+            id: `SEC-001-${context.relativePath.replace(/[\\/]/g, '-')}-L${i + 1}-secret`,
+            category: this.category,
+            severity: this.severity,
+            title: 'Hardcoded High-Entropy API Secret Assignment',
+            path: context.relativePath,
+            lineRange: { start: i + 1, end: i + 1 },
+            explanation: 'High-entropy secret or password variable detected in source code. Secret values must be read from environment variables or a secrets manager.',
+            evidence: redactSecretSnippet(extractSnippet(context.lines, i)),
+            confidence: 0.90,
+            status: 'UNRESOLVED',
+          });
         }
       }
     }
@@ -126,12 +299,14 @@ export const sqlInjectionRule: SecurityRule = {
   description: 'Unsanitized string interpolation or concatenation directly inside database queries.',
   evaluate(context: RuleFileContext): StorageFinding[] {
     const findings: StorageFinding[] = [];
+    const language = context.language ?? detectFileLanguage(context.filePath || context.relativePath);
+    const isComment = createCommentTracker(language);
 
     for (let i = 0; i < context.lines.length; i++) {
       const line = context.lines[i]!;
 
       // Skip lines that are purely comments/documentation
-      if (isCommentOnly(line)) {
+      if (isComment(line)) {
         continue;
       }
 
@@ -177,12 +352,14 @@ export const commandInjectionRule: SecurityRule = {
   description: 'Unsanitized user-controlled variables passed to shell execution functions.',
   evaluate(context: RuleFileContext): StorageFinding[] {
     const findings: StorageFinding[] = [];
+    const language = context.language ?? detectFileLanguage(context.filePath || context.relativePath);
+    const isComment = createCommentTracker(language);
 
     for (let i = 0; i < context.lines.length; i++) {
       const line = context.lines[i]!;
 
       // Skip lines that are purely comments/documentation
-      if (isCommentOnly(line)) {
+      if (isComment(line)) {
         continue;
       }
 
@@ -225,9 +402,16 @@ export const emptyCatchBlockRule: SecurityRule = {
   description: 'Empty catch block silently swallows exceptions, hiding runtime failures.',
   evaluate(context: RuleFileContext): StorageFinding[] {
     const findings: StorageFinding[] = [];
+    const language = context.language ?? detectFileLanguage(context.filePath || context.relativePath);
+    const isComment = createCommentTracker(language);
 
     for (let i = 0; i < context.lines.length; i++) {
       const line = context.lines[i]!;
+
+      // Skip lines that are purely comments/documentation
+      if (isComment(line)) {
+        continue;
+      }
 
       // Empty single-line catch block: catch {} or catch (err) {}
       if (/catch\s*(?:\([^)]*\))?\s*\{\s*\}/.test(line)) {

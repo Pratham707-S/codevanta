@@ -124,6 +124,19 @@ export function findRepositoryRoot(
 }
 
 /**
+ * Detect the programming language for a single file path based on its extension.
+ * File extensions are normalized case-insensitively (e.g. .TS, .tsx, .PY).
+ * Returns undefined if the file has no extension or an unrecognized extension.
+ */
+export function detectFileLanguage(filePath: string): string | undefined {
+  if (!filePath) {
+    return undefined;
+  }
+  const extension = path.extname(filePath).toLowerCase();
+  return LANGUAGE_BY_EXTENSION[extension];
+}
+
+/**
  * Detect languages from a list of repository-relative or absolute file paths.
  *
  * Returns unique language names in deterministic alphabetical order.
@@ -136,8 +149,7 @@ export function detectLanguage(
   const languages = new Set<string>();
 
   for (const filePath of filePaths) {
-    const extension = path.extname(filePath).toLowerCase();
-    const language = LANGUAGE_BY_EXTENSION[extension];
+    const language = detectFileLanguage(filePath);
 
     if (language) {
       languages.add(language);
