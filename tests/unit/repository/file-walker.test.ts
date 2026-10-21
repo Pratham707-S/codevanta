@@ -9,8 +9,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { walkRepositoryFiles } from '../../../src/repository/file-walker.js';
-
+import {
+    walkRepositoryFiles,
+    walkSourceFiles,
+} from '../../../src/repository/file-walker.js';
 const tempDirectories: string[] = [];
 
 function makeTempDirectory(): string {
@@ -161,5 +163,67 @@ describe('walkRepositoryFiles', () => {
         expect(() =>
             walkRepositoryFiles(root, { maxFileSizeBytes: -1 }),
         ).toThrow(RangeError);
+    });
+
+});
+
+describe('walkSourceFiles', () => {
+    it('returns file content, absolute paths, and detected language', async () => {
+        const root = makeTempDirectory();
+
+        writeFile(root, 'src/app.ts', 'const value: number = 42;');
+
+        const result = await walkSourceFiles(root);
+
+        expect(result.unreadableFiles).toEqual([]);
+        expect(result.files).toHaveLength(1);
+        expect(result.files[0]).toMatchObject({
+            filePath: path.join(root, 'src', 'app.ts'),
+            relativePath: 'src/app.ts',
+            content: 'const value: number = 42;',
+            language: 'TypeScript',
+        });
+    });
+
+    it('returns an empty result for a missing repository root', async () => {
+        const root = path.join(
+            os.tmpdir(),
+            'repoguard-source-walker-missing',
+        );
+
+        const result = await walkSourceFiles(root);
+
+        expect(result).toEqual({
+            files: [],
+            unreadableFiles: [],
+        });
+    });
+
+    it('respects the configured maximum file size', async () => {
+        const root = makeTempDirectory();
+
+        writeFile(root, 'small.ts', '1234');
+        writeFile(root, 'large.ts', '12345');
+
+        const result = await walkSourceFiles(root, {
+            maxFileSize: 4,
+        });
+
+        expect(result.files.map((file) => file.relativePath)).toEqual([
+            'small.ts',
+        ]);
+    });
+
+    it('does not include binary files', async () => {
+        const root = makeTempDirectory();
+
+        writeFile(root, 'source.ts', 'const value = 1;');
+        writeFile(root, 'image.bin', Buffer.from([0, 1, 2, 3]));
+
+        const result = await walkSourceFiles(root);
+
+        expect(result.files.map((file) => file.relativePath)).toEqual([
+            'source.ts',
+        ]);
     });
 });
