@@ -189,6 +189,117 @@ describe('Deterministic Security Rules Suite', () => {
       );
       expect(findings.length).toBe(0);
     });
+
+    it('detects dynamic SQL in Python via f-strings, concatenation, and % formatting', async () => {
+      const pyFString = 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")\n';
+      const f1 = await sqlInjectionRule.evaluate(createContext(pyFString, 'app/users.py'));
+      expect(f1.length).toBe(1);
+      expect(f1[0]!.title).toContain('SQL Injection');
+
+      const pyConcat = 'db.execute("SELECT * FROM accounts WHERE name = " + account_name)\n';
+      const f2 = await sqlInjectionRule.evaluate(createContext(pyConcat, 'app/db.py'));
+      expect(f2.length).toBe(1);
+
+      const pyPercent = 'cursor.execute("SELECT * FROM items WHERE cat = %s" % category_id)\n';
+      const f3 = await sqlInjectionRule.evaluate(createContext(pyPercent, 'app/items.py'));
+      expect(f3.length).toBe(1);
+
+      const pyAssign = 'query = f"DELETE FROM sessions WHERE token = {token}"\n';
+      const f4 = await sqlInjectionRule.evaluate(createContext(pyAssign, 'app/auth.py'));
+      expect(f4.length).toBe(1);
+    });
+
+    it('does not flag Python parameterized queries or static queries', async () => {
+      const safePy = [
+        'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))',
+        'conn.execute("SELECT name, email FROM profiles WHERE active = 1")',
+        'query = "SELECT id FROM orders WHERE status = \'PAID\'"',
+      ].join('\n');
+
+      const findings = await sqlInjectionRule.evaluate(createContext(safePy, 'app/models.py'));
+      expect(findings.length).toBe(0);
+    });
+
+    it('detects dynamic SQL in PHP via variable interpolation and dot concatenation', async () => {
+      const phpInterpolated = 'mysqli_query($conn, "SELECT * FROM users WHERE name = \'$username\'");\n';
+      const f1 = await sqlInjectionRule.evaluate(createContext(phpInterpolated, 'src/users.php'));
+      expect(f1.length).toBe(1);
+      expect(f1[0]!.title).toContain('SQL Injection');
+
+      const phpDotConcat = '$pdo->query("SELECT * FROM products WHERE cat_id = " . $_GET[\'id\']);\n';
+      const f2 = await sqlInjectionRule.evaluate(createContext(phpDotConcat, 'src/catalog.php'));
+      expect(f2.length).toBe(1);
+
+      const phpAssign = '$query = "DELETE FROM sessions WHERE id = " . $sessionId;\n';
+      const f3 = await sqlInjectionRule.evaluate(createContext(phpAssign, 'src/auth.php'));
+      expect(f3.length).toBe(1);
+    });
+
+    it('does not flag PHP PDO prepare statements or static queries', async () => {
+      const safePhp = [
+        '$stmt = $pdo->prepare("SELECT * FROM users WHERE id = :id");',
+        '$stmt->execute([":id" => $userId]);',
+        '$result = mysqli_query($conn, "SELECT id, title FROM posts WHERE published = 1");',
+        '$sql = "SELECT count(*) FROM audit_logs";',
+      ].join('\n');
+
+      const findings = await sqlInjectionRule.evaluate(createContext(safePhp, 'src/repo.php'));
+      expect(findings.length).toBe(0);
+    });
+
+    it('detects dynamic SQL in Java via Statement concatenation and JPA queries', async () => {
+      const javaStatement = 'stmt.executeQuery("SELECT * FROM users WHERE username = \'" + username + "\'");\n';
+      const f1 = await sqlInjectionRule.evaluate(createContext(javaStatement, 'com/app/UserDao.java'));
+      expect(f1.length).toBe(1);
+      expect(f1[0]!.title).toContain('SQL Injection');
+
+      const javaJpa = 'entityManager.createQuery("SELECT u FROM User u WHERE u.email = " + email);\n';
+      const f2 = await sqlInjectionRule.evaluate(createContext(javaJpa, 'com/app/UserService.java'));
+      expect(f2.length).toBe(1);
+
+      const javaAssign = 'String sql = "DELETE FROM orders WHERE id = " + orderId;\n';
+      const f3 = await sqlInjectionRule.evaluate(createContext(javaAssign, 'com/app/OrderDao.java'));
+      expect(f3.length).toBe(1);
+    });
+
+    it('does not flag Java PreparedStatement queries or static string literal concatenation', async () => {
+      const safeJava = [
+        'PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE id = ?");',
+        'ps.setInt(1, userId);',
+        'String sql = "SELECT id, username, email " +',
+        '             "FROM accounts " +',
+        '             "WHERE is_active = true";',
+      ].join('\n');
+
+      const findings = await sqlInjectionRule.evaluate(createContext(safeJava, 'com/app/AccountDao.java'));
+      expect(findings.length).toBe(0);
+    });
+
+    it('detects dynamic SQL in Go via fmt.Sprintf and string concatenation', async () => {
+      const goSprintf = 'rows, err := db.Query(fmt.Sprintf("SELECT * FROM users WHERE email = \'%s\'", email))\n';
+      const f1 = await sqlInjectionRule.evaluate(createContext(goSprintf, 'pkg/db/user.go'));
+      expect(f1.length).toBe(1);
+      expect(f1[0]!.title).toContain('SQL Injection');
+
+      const goConcat = 'err := tx.Exec("DELETE FROM sessions WHERE token = " + token)\n';
+      const f2 = await sqlInjectionRule.evaluate(createContext(goConcat, 'pkg/db/session.go'));
+      expect(f2.length).toBe(1);
+
+      const goAssign = 'query := fmt.Sprintf("SELECT * FROM items WHERE cat = %d", catId)\n';
+      const f3 = await sqlInjectionRule.evaluate(createContext(goAssign, 'pkg/db/items.go'));
+      expect(f3.length).toBe(1);
+    });
+
+    it('does not flag Go parameterized db.Query statements or static queries', async () => {
+      const safeGo = [
+        'rows, err := db.Query("SELECT id, name FROM users WHERE id = $1", userId)',
+        'row := tx.QueryRow("SELECT email FROM accounts WHERE uuid = ?", uuid)',
+        'query := "SELECT count(*) FROM orders"',
+      ].join('\n');
+
+      const findings = await sqlInjectionRule.evaluate(createContext(safeGo, 'pkg/db/repo.go'));
+      expect(findings.length).toBe(0);
+    });
   });
 
   describe('SEC-003: Command Injection & Dynamic Shell Execution', () => {
@@ -238,6 +349,115 @@ describe('Deterministic Security Rules Suite', () => {
 
       const findings = await commandInjectionRule.evaluate(
         createContext(pyCode, 'scripts/cleanup.py')
+      );
+      expect(findings.length).toBe(0);
+    });
+
+    it('detects dynamic os.system, os.popen, and subprocess with shell=True in Python', async () => {
+      const pyOs = 'os.system(f"ping -c 1 {target_host}")\n';
+      const f1 = await commandInjectionRule.evaluate(createContext(pyOs, 'app/ping.py'));
+      expect(f1.length).toBe(1);
+
+      const pyPopen = 'os.popen("cat " + user_filename)\n';
+      const f2 = await commandInjectionRule.evaluate(createContext(pyPopen, 'app/cat.py'));
+      expect(f2.length).toBe(1);
+
+      const pySubprocess = 'subprocess.run(f"echo {user_input}", shell=True)\n';
+      const f3 = await commandInjectionRule.evaluate(createContext(pySubprocess, 'app/echo.py'));
+      expect(f3.length).toBe(1);
+    });
+
+    it('does not flag safe Python subprocess array execution or static commands', async () => {
+      const safePy = [
+        'subprocess.run(["ping", "-c", "1", host], check=True)',
+        'subprocess.Popen(["ls", "-l", user_dir])',
+        'os.system("clear")',
+        'os.system("cls")',
+      ].join('\n');
+
+      const findings = await commandInjectionRule.evaluate(
+        createContext(safePy, 'app/safe_process.py')
+      );
+      expect(findings.length).toBe(0);
+    });
+
+    it('detects dynamic shell_exec, system, and backtick execution in PHP', async () => {
+      const phpSystem = 'system("ping -c 1 " . $_GET[\'ip\']);\n';
+      const f1 = await commandInjectionRule.evaluate(createContext(phpSystem, 'src/network.php'));
+      expect(f1.length).toBe(1);
+      expect(f1[0]!.title).toContain('Command Injection');
+
+      const phpShellExec = '$output = shell_exec("cat " . $filePath);\n';
+      const f2 = await commandInjectionRule.evaluate(createContext(phpShellExec, 'src/file.php'));
+      expect(f2.length).toBe(1);
+
+      const phpBackticks = '$res = `whoami $userParam`;\n';
+      const f3 = await commandInjectionRule.evaluate(createContext(phpBackticks, 'src/user.php'));
+      expect(f3.length).toBe(1);
+    });
+
+    it('does not flag safe static PHP command execution', async () => {
+      const safePhp = [
+        'system("whoami");',
+        '$output = shell_exec("uptime");',
+        'passthru("date");',
+      ].join('\n');
+
+      const findings = await commandInjectionRule.evaluate(
+        createContext(safePhp, 'src/sysinfo.php')
+      );
+      expect(findings.length).toBe(0);
+    });
+
+    it('detects dynamic Runtime.getRuntime().exec and ProcessBuilder shell wrappers in Java', async () => {
+      const javaRuntimeConcat = 'Runtime.getRuntime().exec("ping " + hostAddress);\n';
+      const f1 = await commandInjectionRule.evaluate(createContext(javaRuntimeConcat, 'com/app/NetworkUtil.java'));
+      expect(f1.length).toBe(1);
+      expect(f1[0]!.title).toContain('Command Injection');
+
+      const javaRuntimeVar = 'Runtime.getRuntime().exec(userInputCmd);\n';
+      const f2 = await commandInjectionRule.evaluate(createContext(javaRuntimeVar, 'com/app/Runner.java'));
+      expect(f2.length).toBe(1);
+
+      const javaProcessBuilder = 'new ProcessBuilder("sh", "-c", "cat " + filename).start();\n';
+      const f3 = await commandInjectionRule.evaluate(createContext(javaProcessBuilder, 'com/app/FileUtil.java'));
+      expect(f3.length).toBe(1);
+    });
+
+    it('does not flag safe Java ProcessBuilder discrete arrays or static commands', async () => {
+      const safeJava = [
+        'new ProcessBuilder("ping", "-c", "1", host).start();',
+        'new ProcessBuilder("ls", "-la", directoryPath).start();',
+        'Runtime.getRuntime().exec("date");',
+        'Runtime.getRuntime().exec("clear");',
+      ].join('\n');
+
+      const findings = await commandInjectionRule.evaluate(
+        createContext(safeJava, 'com/app/SafeProcess.java')
+      );
+      expect(findings.length).toBe(0);
+    });
+
+    it('detects dynamic exec.Command shell execution in Go', async () => {
+      const goExecShell = 'cmd := exec.Command("sh", "-c", "cat " + filename)\n';
+      const f1 = await commandInjectionRule.evaluate(createContext(goExecShell, 'pkg/proc/runner.go'));
+      expect(f1.length).toBe(1);
+      expect(f1[0]!.title).toContain('Command Injection');
+
+      const goExecSprintf = 'cmd := exec.Command("bash", "-c", fmt.Sprintf("ping %s", ip))\n';
+      const f2 = await commandInjectionRule.evaluate(createContext(goExecSprintf, 'pkg/net/ping.go'));
+      expect(f2.length).toBe(1);
+    });
+
+    it('does not flag safe direct Go exec.Command execution', async () => {
+      const safeGo = [
+        'cmd := exec.Command("ping", "-c", "1", host)',
+        'cmd := exec.Command("cat", filename)',
+        'cmd := exec.Command("uptime")',
+      ].join('\n');
+
+      const findings = await commandInjectionRule.evaluate(
+        createContext(safeGo, 'pkg/proc/safe.go')
       );
       expect(findings.length).toBe(0);
     });
@@ -565,6 +785,63 @@ describe('Deterministic Security Rules Suite', () => {
       // C pointer dereference MUST produce finding
       const cFindings = findings.filter((f) => f.path.endsWith('.c'));
       expect(cFindings.length).toBe(1);
+    });
+
+    it('RuleRunner detects multi-language vulnerabilities across Python, PHP, Java, and Go files end-to-end', async () => {
+      const runner = new RuleRunner();
+      const files = [
+        {
+          filePath: '/repo/backend/users.py',
+          relativePath: 'backend/users.py',
+          content: 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")\n',
+        },
+        {
+          filePath: '/repo/scripts/deploy.py',
+          relativePath: 'scripts/deploy.py',
+          content: 'os.system(f"deploy {target_env}")\n',
+        },
+        {
+          filePath: '/repo/web/catalog.php',
+          relativePath: 'web/catalog.php',
+          content: '$pdo->query("SELECT * FROM items WHERE cat_id = " . $_GET["id"]);\n',
+        },
+        {
+          filePath: '/repo/web/shell.php',
+          relativePath: 'web/shell.php',
+          content: '$output = shell_exec("cat " . $filePath);\n',
+        },
+        {
+          filePath: '/repo/src/main/UserDao.java',
+          relativePath: 'src/main/UserDao.java',
+          content: 'stmt.executeQuery("SELECT * FROM users WHERE username = \'" + user + "\'");\n',
+        },
+        {
+          filePath: '/repo/src/main/Runner.java',
+          relativePath: 'src/main/Runner.java',
+          content: 'Runtime.getRuntime().exec("ping " + hostAddress);\n',
+        },
+        {
+          filePath: '/repo/pkg/db/repo.go',
+          relativePath: 'pkg/db/repo.go',
+          content: 'rows, err := db.Query(fmt.Sprintf("SELECT * FROM users WHERE email = \'%s\'", email))\n',
+        },
+        {
+          filePath: '/repo/pkg/proc/run.go',
+          relativePath: 'pkg/proc/run.go',
+          content: 'cmd := exec.Command("sh", "-c", "cat " + filename)\n',
+        },
+      ];
+
+      const findings = await runner.evaluateFiles(files);
+
+      // Exactly 8 findings (1 per file: 4 SQLi + 4 Command Injection)
+      expect(findings.length).toBe(8);
+
+      const sqliFindings = findings.filter((f) => f.category === 'Security / SQL Injection');
+      expect(sqliFindings.length).toBe(4);
+
+      const cmdFindings = findings.filter((f) => f.category === 'Security / Command Injection');
+      expect(cmdFindings.length).toBe(4);
     });
   });
 
