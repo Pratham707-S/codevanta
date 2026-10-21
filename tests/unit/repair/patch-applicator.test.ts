@@ -204,12 +204,46 @@ describe('PatchApplicator & applyHunksToString', () => {
       expect(result.errors[0]).toMatch(/prohibited|escapes|unsafe/i);
     });
 
-    it('rejects modifying a file through an external symlink', async () => {
+    /**
+     * Safely creates a symlink for testing. If the host OS restricts symlink creation
+     * (such as Windows environments lacking Developer Mode or SeCreateSymbolicLinkPrivilege),
+     * the test is explicitly skipped with a descriptive reason so permission errors are
+     * not confused with test failures or false-positive security checks.
+     */
+    async function createSymlinkOrSkip(
+      target: string,
+      linkPath: string,
+      type: 'file' | 'dir',
+      ctx: { skip: (reason?: string) => void }
+    ): Promise<void> {
+      let created = false;
+      let errorCode = '';
+
+      try {
+        await symlink(target, linkPath, type);
+        created = true;
+      } catch (err: unknown) {
+        const error = err as NodeJS.ErrnoException;
+        if (error.code === 'EPERM' || error.code === 'ENOTSUP') {
+          errorCode = error.code;
+        } else {
+          throw err;
+        }
+      }
+
+      if (!created) {
+        ctx.skip(
+          `Symlink creation not permitted by OS (${errorCode}). Windows environments require Developer Mode or SeCreateSymbolicLinkPrivilege.`
+        );
+      }
+    }
+
+    it('rejects modifying a file through an external symlink', async (ctx) => {
       const targetOutside = join(outsideDir, 'secret.env');
       await writeFile(targetOutside, 'SECRET_KEY=12345\n');
 
       const symlinkInRepo = join(tempDir, 'symlinked.env');
-      await symlink(targetOutside, symlinkInRepo);
+      await createSymlinkOrSkip(targetOutside, symlinkInRepo, 'file', ctx);
 
       const diff = `--- a/symlinked.env
 +++ b/symlinked.env
@@ -226,9 +260,9 @@ describe('PatchApplicator & applyHunksToString', () => {
       expect(outsideContent).toBe('SECRET_KEY=12345\n');
     });
 
-    it('rejects creating a new file under a symlinked parent directory pointing outside repo', async () => {
+    it('rejects creating a new file under a symlinked parent directory pointing outside repo', async (ctx) => {
       const symlinkParentInRepo = join(tempDir, 'external-dir');
-      await symlink(outsideDir, symlinkParentInRepo, 'dir');
+      await createSymlinkOrSkip(outsideDir, symlinkParentInRepo, 'dir', ctx);
 
       const diff = `--- /dev/null
 +++ b/external-dir/evil.txt
