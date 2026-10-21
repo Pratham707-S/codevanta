@@ -8,3 +8,4 @@
 
 export * from './discovery.js';
 export * from './file-walker.js';
+export * from './git-reader.js';
