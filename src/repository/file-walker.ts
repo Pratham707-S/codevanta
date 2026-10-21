@@ -12,6 +12,7 @@ import {
   readFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { detectFileLanguage } from './discovery.js';
 
 const MAX_FILE_SIZE_BYTES = 1024 * 1024;
 
@@ -51,6 +52,94 @@ export interface FileWalkerOptions {
   maxFileSizeBytes?: number;
   /** Additional directory names to skip. */
   ignoredDirectories?: readonly string[];
+}
+
+export interface SourceFile {
+  filePath: string;
+  relativePath: string;
+  content: string;
+  language?: string;
+}
+
+export interface WalkSourceFilesOptions {
+  maxFileSize?: number;
+  ignoredDirectories?: readonly string[];
+}
+
+export interface WalkSourceFilesResult {
+  files: SourceFile[];
+  unreadableFiles: string[];
+}
+
+/**
+ * Discovers eligible source files and reads their text content.F
+ * Unsafe, oversized, and ignored files are excluded by the repository walker.
+ */
+export async function walkSourceFiles(
+  repositoryRoot: string,
+  options: WalkSourceFilesOptions = {},
+): Promise<WalkSourceFilesResult> {
+  const rootPath = path.resolve(repositoryRoot);
+
+  const discoveredFiles = walkRepositoryFiles(rootPath, {
+    maxFileSizeBytes: options.maxFileSize,
+    ignoredDirectories: options.ignoredDirectories,
+  });
+
+  const files: SourceFile[] = [];
+  const unreadableFiles: string[] = [];
+
+  for (const discoveredFile of discoveredFiles) {
+    const absolutePath = path.resolve(
+      rootPath,
+      discoveredFile.relativePath,
+    );
+
+    const relativeToRoot = path.relative(rootPath, absolutePath);
+
+    // Make sure the file path stays inside the repository.
+    if (
+      relativeToRoot.startsWith(`..${path.sep}`) ||
+      relativeToRoot === '..' ||
+      path.isAbsolute(relativeToRoot)
+    ) {
+      continue;
+    }
+
+    try {
+      const stats = lstatSync(absolutePath);
+
+      // Recheck the file before reading it.
+      if (!stats.isFile() || stats.isSymbolicLink()) {
+        continue;
+      }
+
+      if (
+        options.maxFileSize !== undefined &&
+        stats.size > options.maxFileSize
+      ) {
+        continue;
+      }
+
+      const content = readFileSync(absolutePath, 'utf8');
+
+      // Don't pass binary content to the rule engine.
+      if (content.includes('\0')) {
+        continue;
+      }
+
+      files.push({
+        filePath: absolutePath,
+        relativePath: discoveredFile.relativePath,
+        content,
+        language: detectFileLanguage(discoveredFile.relativePath),
+      });
+    } catch {
+      unreadableFiles.push(discoveredFile.relativePath);
+    }
+  }
+
+  return { files, unreadableFiles };
 }
 
 /**
