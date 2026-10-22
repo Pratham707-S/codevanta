@@ -1,192 +1,184 @@
-# RepoGuard Team Tasks & Skills Matrix 👥
+# RepoGuard Team Tasks & Ownership Matrix 👥
 
-To ensure smooth parallel development, clean module boundaries, and no merge collisions, this document defines exact module ownership, skills matrix, shared contracts, and acceptance criteria for all team members.
+Updated for the **Final 11-Feature Architecture** following Phase 1 & Phase 2 delivery. This document serves as the authoritative source of truth for module ownership, shared contracts, completed milestones, and remaining implementation deliverables across the engineering team.
 
 ---
 
-## 🏛️ Team Roster & Module Ownership
+## 🏛️ Team Roster & Focus Areas
 
-| Member | Focus Area | Owned Code Directory | Primary Responsibilities |
+| Member | Focus Area | Owned Code Modules | Core Responsibilities |
 | :--- | :--- | :--- | :--- |
-| **Team Lead** | CLI, Domain, AI Analysis & Application | `src/cli/`<br>`src/application/`<br>`src/domain/`<br>`src/analysis/`<br>`src/providers/`<br>`src/utils/` | CLI routing & options (`commander`), shared Zod schemas & contracts, application orchestration use cases, AI provider adapters (`Gemini`), analysis agents & rule runner, shared utilities. |
-| **Pratham** | Repair & Verification | `src/repair/`<br>`src/verification/`<br>`src/domain/repair/`<br>`src/domain/verification/` | Unified diff patch generation & parsing, path traversal validation, interactive human approval prompt gate, controlled verification runner with timeouts, Docker sandbox adapter. |
-| **Ayan** | Configuration, Storage & Reporting | `src/config/`<br>`src/storage/`<br>`src/report/`<br>`examples/`<br>`.repoguard/` | Configuration schema (`Zod`) & loading, local run and finding state persistence, Markdown & JSON report formatting, configuration examples. *(CLI is owned by Team Lead).* |
-| **Manni** | Repository Scanning & Context | `src/repository/`<br>`src/context/`<br>`src/domain/repository/` | Repository root detection, safe file traversal (`.gitignore`, limits, binary skips), Git status & diff inspection, bounded context builder, regex & entropy secret redaction. |
-
-*(Note: `src/index.ts` is the composition root, coordinated by the Team Lead).*
+| **Team Lead** *(me)* | Architecture, CLI, AI Analysis & GitHub Integration | `src/cli/`<br>`src/application/`<br>`src/domain/`<br>`src/analysis/`<br>`src/providers/`<br>`src/advanced/github/`<br>`src/utils/` | System architecture, CLI command routing & interactive UX (`commander`), domain entity schemas (`Zod`), multi-pass analysis agents & rule engine, AI model adapters (`Gemini`), evidence confidence scoring, authorized GitHub PR publisher, composition root (`src/index.ts`). |
+| **Pratham** | Repair Engine & Sandbox Verification | `src/repair/`<br>`src/verification/`<br>`src/domain/repair.ts`<br>`src/domain/verification.ts` | Unified diff parsing & application, path traversal security enforcement, interactive human approval prompt gate, subprocess check execution with wall-clock timeouts, Docker container sandbox adapter. |
+| **Ayan** | Configuration, Storage, Reports & Memory | `src/config/`<br>`src/storage/`<br>`src/report/`<br>`src/advanced/memory/`<br>`examples/`<br>`.repoguard/` | Configuration schema & loading (`repoguard.config.json`), local state & run store persistence (`.repoguard/state`), HTML, Markdown & JSON audit reporting, evidence timeline visualization, fix outcome feedback memory store. |
+| **Maan (Manni)** | Repository Ingestion, Context & Cross-Repo | `src/repository/`<br>`src/context/`<br>`src/domain/repository.ts` | Repository root detection, safe file traversal (`.gitignore`, limits, binary skips), Git status & historical commit/blame extraction, bounded context assembly, high-entropy regex secret redaction, multi-repo immunization discovery. |
 
 ---
 
-## 🧠 Team Skills & Responsibilities Matrix
+## 🎯 Final 11-Feature Scope vs Deferred Features
 
-Skills are classified into three practical tiers:
-* 🟢 **Must Know:** Essential prerequisites required before starting assigned tasks.
-* 🟡 **Learn During Project:** Practical skills developed while building the MVP modules.
-* 🔵 **Later / Advanced:** High-complexity capabilities strictly deferred until post-MVP phases.
+### The 11 Active Features
+1. **Repository / GitHub Ingestion:** Safe local traversal + Git remote diff/repo ingestion.
+2. **Multi-Pass Investigation:** Deterministic AST rules + AI specialized analysis agents.
+3. **RAG & Persistent Memory:** Bounded retrieval of historical fixes & conventions into prompt context.
+4. **AI Repair Engineer:** AI patch synthesis bound to findings + unified diff generation.
+5. **Sandbox Verification:** Subprocess runner + Docker sandbox isolation with strict timeouts.
+6. **Learn from Fix Outcomes:** Historical record of verified vs rejected repair attempts.
+7. **Authorized GitHub Pull Requests:** Least-privilege automated PR creation with verification badges.
+8. **Root-Cause Timeline:** Chronological timeline linking Git commits, findings, and diffs.
+9. **Evidence-Based Repair Confidence:** Multi-factor confidence scoring derived from AST & test outcomes.
+10. **Human Approval Gate:** Mandatory interactive confirmation before applying any disk changes.
+11. **Cross-Repo Ripple Immunization:** Proactive pattern matching & patch recommendations across connected repositories.
+
+### Deferred Features (Strictly Out of Current Scope)
+* 🚫 **Regression & Side-Effect Prediction:** Deep downstream blast-radius analysis (Deferred to later research).
+* 🚫 **Repository Knowledge Graph:** Full codebase AST-level call/import graph (Deferred).
+* 🚫 **Future Bug Predictor:** Churn & statistical hotspot defect prediction (Deferred).
+* 🚫 **Telemetry-Driven Rollback:** Production telemetry ingestion & automated revert PRs (Deferred).
 
 ---
+
+## 📋 Teammate Ownership, Delivered Work & Remaining Deliverables
 
 ### 1. Team Lead
-* **Primary Role:** System Architect, Domain Custodian & Integration Coordinator
-* **Owned Directories:** `src/domain/`, `src/application/`, `src/infrastructure/ai/`, `src/infrastructure/redaction/` *(and joint coordination of `src/index.ts`)*
+* **Primary Role:** Architecture, CLI Routing, AI Analysis, Domain Contracts, System Integration
+* **Owned Directories:** `src/cli/`, `src/application/`, `src/domain/`, `src/analysis/`, `src/providers/`, `src/advanced/github/`, `src/utils/`
 
-#### Skills Breakdown
-* 🟢 **Must Know:**
-  * Advanced TypeScript: generics, mapped types, discriminated unions, and strict compiler enforcement (`strict: true`).
-  * Zod schema definition, parsing, validation, and type inference (`z.infer<T>`).
-  * Clean Architecture & Ports/Adapters: dependency injection, interface segregation, isolating domain from external I/O.
-  * Git governance: branch protection, PR review standards, and merge conflict resolution.
-* 🟡 **Learn During Project:**
-  * Structured prompt construction and deterministic JSON schema enforcement for LLM providers.
-  * Secret detection algorithms: high-entropy token analysis and regex matching for private credentials.
-  * Mock adapter design in Vitest (`vi.fn()`, deterministic test fixtures).
-  * Use-case pipeline orchestration connecting decoupled infrastructure adapters.
-* 🔵 **Later / Advanced:**
-  * Vector database integration and persistent retrieval-augmented generation (RAG).
-  * Abstract Syntax Tree (AST) repository knowledge graph construction.
-  * Multi-turn autonomous agent negotiation and self-reflection loops.
+#### ✅ Delivered in Phase 1 & 2 (Completed — Do Not Re-implement)
+* **Domain Schemas:** Canonical schemas and contracts (`finding.ts`, `shared.ts`).
+* **Static Rule Engine:** Deterministic rule runner (`rules/rule-runner.ts`, `rules/suspicious-patterns.ts` for SEC-001 - SEC-004).
+* **CLI Framework:** Command definitions (`init`, `scan`, `report`, `status`, `review`), interactive terminal launcher, animated branding, formatting utilities.
+* **Provider Adapters:** `MockAdapter` and `GeminiAdapter` foundational communication stubs.
+* **Baseline Confidence Scoring:** Initial static confidence metric calculation (`analysis/confidence.ts`).
 
-#### Expected Deliverables & Tests
-* `src/domain/**`: Canonical types and Zod schemas (`Finding`, `RepairProposal`, `VerificationResult`, `IScanner`, `IAIProvider`, `IRedactor`, `IVerifier`).
-* `src/application/**`: 4 orchestration use cases (`ScanRepositoryUseCase`, `InvestigateFindingUseCase`, `ProposeRepairUseCase`, `VerifyRepairUseCase`).
-* `src/infrastructure/ai/**`: `MockAIProvider`, prompt builders, response validators.
-* `src/infrastructure/redaction/**`: Regex and entropy secret sanitization adapter.
-* **Tests Owned:** `tests/unit/domain/**`, `tests/unit/application/**`, `tests/unit/ai/**`, `tests/unit/redaction/**`, `tests/security/secret-leakage.test.ts`.
+#### 🚀 Remaining Deliverables (11-Feature Roadmap)
+1. **Multi-Pass Investigation (Feature 2):** Connect specialized agents (`bug-investigation.agent.ts`, `security-review.agent.ts`, `performance-review.agent.ts`) to `GeminiAdapter` for deep multi-pass reasoning.
+2. **AI Repair Synthesis (Feature 4 Co-ownership):** Implement structured LLM prompts in `GeminiAdapter` to generate valid unified diffs from findings.
+3. **Dynamic Confidence Calibration (Feature 9):** Enhance `confidence.ts` to compute dynamic post-verification confidence scores combining static evidence + verification results.
+4. **Authorized GitHub PR Publisher (Feature 7):** Implement `src/advanced/github/pull-request-publisher.ts` with GitHub App authentication, branch generation, and commit creation.
 
-#### Dependencies on Others
-* **Ayan:** For CLI command wiring and config options in `src/index.ts`.
-* **Manni:** For file scanner adapter contract adherence (`IScanner`).
-* **Pratham:** For repair and verification runner contract adherence (`IVerifier`, `IRepairEngine`).
-
-#### Readiness Checklist
-- [ ] TypeScript strict mode compiler options and Zod installed.
-- [ ] Domain contracts published and typechecked without errors.
-- [ ] `MockAIProvider` emits deterministic test fixtures offline.
-- [ ] Secret redaction engine successfully replaces sample test keys with `[REDACTED_SECRET]`.
+#### Integration Contracts & Dependencies
+* Exposes `IAIProvider` and `Finding` contracts to Pratham's `RepairOrchestrator`.
+* Consumes Pratham's verification outcomes to calibrate the final confidence score.
+* Exposes CLI commands routing into Ayan's configuration loader and report generators.
 
 ---
 
-### 2. Ayan
-* **Primary Role:** CLI, Configuration & Presentation Engineer
-* **Owned Directories:** `src/cli/`, `src/config/`, `src/output/` *(and joint coordination of `src/index.ts`)*
+### 2. Pratham
+* **Primary Role:** Repair Engine, Human Approval Gate, Sandbox Verification
+* **Owned Directories:** `src/repair/`, `src/verification/`, `src/domain/repair.ts`, `src/domain/verification.ts`
 
-#### Skills Breakdown
-* 🟢 **Must Know:**
-  * Node.js CLI runtime basics: `process.argv`, standard streams (`stdout`, `stderr`), and process exit codes.
-  * CLI option and argument parsing using `commander`.
-  * JSON serialization, deserialization, and safe error trapping in TypeScript.
-  * Basic Git workflow: feature branches, atomic commits, pull requests.
-* 🟡 **Learn During Project:**
-  * Terminal UI styling and syntax highlighting using `picocolors` or `chalk`.
-  * Configuration resolution: searching working directories, merging CLI flags with config files, and validating via Zod.
-  * POSIX signal handling (`SIGINT`, `SIGTERM`) and standard UNIX exit code conventions (`0` success, `1` finding/failure, `2` configuration error).
-  * Writing CLI unit tests in Vitest by mocking process streams and testing flag combinations.
-* 🔵 **Later / Advanced:**
-  * Rich terminal UI frameworks (e.g., Ink / terminal canvas components).
-  * Shell autocompletion script generation (Bash, Zsh, Fish).
-  * Real-time streaming spinners and multi-progress bars for concurrent background tasks.
+#### ✅ Delivered in Phase 1 & 2 (Completed — Do Not Re-implement)
+* **Unified Diff Parser (`patch-parser.ts`):** Robust parser for unified diffs with chunk validation and path normalization.
+* **Path Traversal Security:** Mandatory guards preventing directory traversal escapes (`safe-path.ts`) across all platforms.
+* **Diff Preview (`diff-preview.ts`):** Terminal-colored unified diff visualizer with hunk numbering.
+* **Human Approval Gate (`approval-gate.ts`):** Interactive confirmation gate with affirmative prompt, non-interactive bypass protection, and explicit user controls.
+* **Patch Applicator (`patch-applicator.ts`):** Atomic patch application to local disk with external symlink security validation.
+* **Verification Check Runner (`check-runner.ts`):** Subprocess runner executing allowlisted commands (`test`, `lint`, `typecheck`) with wall-clock timeout protection and truthful outcome classification (`result-classifier.ts`).
 
-#### Expected Deliverables & Tests
-* `src/cli/**`: Command routing (`scan`, `investigate`, `repair`, `verify`), argument validation, `--help` formatting.
-* `src/config/**`: `config.schema.ts`, `config.loader.ts`, fallback defaults.
-* `src/output/**`: `terminal.formatter.ts` (tables, diff coloring, badges), `json.formatter.ts` (strict JSON output).
-* **Tests Owned:** `tests/unit/cli/**`, `tests/unit/config/**`, `tests/unit/output/**`.
+#### 🚀 Remaining Deliverables (11-Feature Roadmap)
+1. **Repair Orchestrator Wiring (Feature 4):** Connect `repair-orchestrator.ts` to the AI provider response to generate, parse, preview, and apply candidate fixes end-to-end.
+2. **Docker Sandbox Adapter (Feature 5):** Complete `src/verification/sandbox/docker-runner.ts` and `resource-limits.ts` to allow running untrusted test suites in disposable Docker containers.
+3. **Verification Outcome Event Emitter (Feature 6 Co-ownership):** Emit structured `{ findingId, patch, verificationResult }` payloads to Ayan's feedback store.
+4. **PR Patch Payload Formatter (Feature 7 Co-ownership):** Format approved candidate patches and verification proof summary for GitHub PR body.
 
-#### Dependencies on Others
-* **Team Lead:** For domain result types (`Finding`, `RepairProposal`, `VerificationResult`) and application use-case instances to trigger.
-
-#### Readiness Checklist
-- [ ] `commander` boots cleanly and outputs formatted `--help` for all subcommands.
-- [ ] Configuration loader handles missing files by falling back to safe defaults.
-- [ ] Output formatter renders sample mock findings both in styled terminal colors and valid JSON.
-- [ ] CLI exits with correct UNIX exit codes under both successful and erroneous invocations.
+#### Integration Contracts & Dependencies
+* Receives findings from Team Lead's analysis engine.
+* Hands off verification outcomes to Team Lead's confidence engine and Ayan's feedback store.
+* Relies on Maan's repo root path and git status to ensure working trees remain clean.
 
 ---
 
-### 3. Manni
-* **Primary Role:** Repository Discovery & Scanner Engineer
-* **Owned Directories:** `src/infrastructure/scanner/`, `tests/fixtures/sample-repos/`
+### 3. Ayan
+* **Primary Role:** Configuration, Storage, Audit Reporting, Fix Memory
+* **Owned Directories:** `src/config/`, `src/storage/`, `src/report/`, `src/advanced/memory/`, `examples/`, `.repoguard/`
 
-#### Skills Breakdown
-* 🟢 **Must Know:**
-  * Node.js `fs/promises` and `path` APIs (`readdir`, `stat`, `join`, `relative`, path normalization).
-  * Recursive directory traversal and basic file filtering.
-  * TypeScript fundamentals: interfaces, async/await, error handling.
-  * Basic Git operations.
-* 🟡 **Learn During Project:**
-  * Parsing and evaluating `.gitignore` rules using standard packages (e.g., `ignore`).
-  * Binary file detection (inspecting buffer byte sequences / null-byte checks) to prevent reading non-text files.
-  * File size threshold guards (skipping files > 1MB) and memory-efficient streaming.
-  * Extracting repository metadata (`package.json`, lockfiles, language configurations).
-  * Setting up isolated test fixtures containing dummy git repositories.
-* 🔵 **Later / Advanced:**
-  * AST (Abstract Syntax Tree) parsing (using Babel parser or `ts-morph`) for semantic code inspection.
-  * Git blame extraction and historical commit diff traversal for root-cause analysis.
-  * Incremental scanning using filesystem file-watchers (`chokidar`).
+#### ✅ Delivered in Phase 1 & 2 (Completed — Do Not Re-implement)
+* **Configuration Loader & Schema:** `src/config/schema.ts` and `src/config/loader.ts` with CLI flag overrides and safe fallback defaults.
+* **Run & State Store:** `src/storage/run-store.ts` and `src/storage/state-store.ts` for persisting scan histories and finding states in `.repoguard/`.
+* **Multi-Format Report Builders:** `src/report/report-builder.ts`, `markdown-report.ts`, `html-report.ts`, and `json-report.ts` generating comprehensive audit reports.
+* **Baseline Evidence Timeline:** `src/report/evidence-timeline.ts` formatting sequential run events.
 
-#### Expected Deliverables & Tests
-* `src/infrastructure/scanner/file-walker.ts`: Safe recursive traversal with size and binary guards.
-* `src/infrastructure/scanner/ignore-rules.ts`: `.gitignore` and default folder exclusion engine.
-* `src/infrastructure/scanner/metadata-detector.ts`: Project toolchain and metadata identification.
-* `src/infrastructure/scanner/safe-scanner.adapter.ts`: Concrete implementation of `IScanner`.
-* **Tests Owned:** `tests/unit/scanner/**` testing empty directories, nested ignore files, binary files, and oversized files.
+#### 🚀 Remaining Deliverables (11-Feature Roadmap)
+1. **Root-Cause Timeline Enhancement (Feature 8):** Enhance `evidence-timeline.ts` with Git blame and commit metadata (from Maan's `git-reader.ts`) to display chronological defect origins in HTML/Markdown reports.
+2. **Learn from Fix Outcomes Store (Feature 6):** Implement `src/advanced/memory/success-failure-feedback.ts` to log verified fixes vs rejected patches, creating empirical repair datasets.
+3. **RAG Persistent Memory Store (Feature 3):** Implement local storage index in `src/advanced/memory/repair-memory.ts` and query contract in `memory.contract.ts` to index and retrieve relevant fix patterns.
 
-#### Dependencies on Others
-* **Team Lead:** For the `IScanner` port interface and `Finding` schema in `src/domain/`.
-
-#### Readiness Checklist
-- [ ] File walker traverses a directory fixture and produces normalized relative paths.
-- [ ] `.git/`, `node_modules/`, and `.env*` files are strictly excluded from scan results.
-- [ ] Binary files and files exceeding 1MB are safely skipped without process crashes.
-- [ ] Verified invariant: file walker operates in 100% read-only mode with zero file writes.
+#### Integration Contracts & Dependencies
+* Provides config resolution for all commands run by Team Lead.
+* Receives verification results from Pratham to store in run history and feedback logs.
+* Receives commit history and file blame from Maan for timeline enrichment.
 
 ---
 
-### 4. Pratham
-* **Primary Role:** Repair Workflow & Verification Engineer
-* **Owned Directories:** `src/infrastructure/repair/`, `src/infrastructure/verifier/`
+### 4. Maan (Manni)
+* **Primary Role:** Repository Discovery, Traversal, Context Intelligence, Cross-Repo Scanning
+* **Owned Directories:** `src/repository/`, `src/context/`, `src/domain/repository.ts`
 
-#### Skills Breakdown
-* 🟢 **Must Know:**
-  * Node.js `child_process` execution (`spawn`, `execFile`) and child process lifecycle management.
-  * Unified diff formatting conventions (`---`, `+++`, `@@ -l,s +l,s @@`).
-  * Path manipulation and directory traversal risks (`path.resolve`, `../` escaping attacks).
-  * TypeScript asynchronous programming and exception handling.
-* 🟡 **Learn During Project:**
-  * Programmatic diff generation and patch validation using standard diff libraries (e.g., `diff`).
-  * Path traversal security guards ensuring proposed patches cannot write outside the repository root.
-  * Interactive CLI confirmation prompts (`[y/N]`) using Node.js `readline` / `@clack/prompts`.
-  * Child process execution with strict wall-clock timers and signal termination (`SIGTERM` / `SIGKILL`).
-  * Accurate exit-code status classification: mapping outcomes to `PASSED`, `FAILED`, `TIMED_OUT`, `SKIPPED`.
-* 🔵 **Later / Advanced:**
-  * Docker containerization and sandbox execution for isolating untrusted verification commands.
-  * Multi-file atomic patch transactions with automatic rollback on partial application failure.
-  * Git worktree isolation for testing patches in isolated temporary working trees.
+#### ✅ Delivered in Phase 1 & 2 (Completed — Do Not Re-implement)
+* **Repository Root Discovery:** `src/repository/discovery.ts` detecting `.git` markers, project root, and package manager tooling.
+* **Safe File Walker:** `src/repository/file-walker.ts` honoring `.gitignore`, default exclusions (`node_modules`, `.git`, `dist`), binary file skips, and the 1MB file size limit.
+* **Git Reader:** `src/repository/git-reader.ts` extracting HEAD commit, branch status, and staged diffs.
+* **Secret Redaction Filter:** `src/context/secret-redactor.ts` sanitizing API keys, passwords, high-entropy tokens, and `.env` credentials with `[REDACTED_SECRET]`.
+* **Context Buffer Builder:** `src/context/context-builder.ts` assembling bounded file context windows.
 
-#### Expected Deliverables & Tests
-* `src/infrastructure/repair/diff-generator.ts`: Unified diff formatter.
-* `src/infrastructure/repair/path-validator.ts`: Path sanitizer blocking directory traversal attempts.
-* `src/infrastructure/repair/approval-gate.ts`: Interactive human confirmation gate.
-* `src/infrastructure/verifier/process-runner.ts`: Controlled child process executor with timeouts.
-* `src/infrastructure/verifier/policy-evaluator.ts`: Allowlist check validator (`test`, `lint`, `typecheck`).
-* `src/infrastructure/verifier/status-classifier.ts`: Truthful result classifier.
-* **Tests Owned:** `tests/unit/repair/**`, `tests/unit/verifier/**`, `tests/security/path-traversal.test.ts`, `tests/security/command-injection.test.ts`.
+#### 🚀 Remaining Deliverables (11-Feature Roadmap)
+1. **Git Blame & History Extraction (Feature 8 Co-ownership):** Extend `git-reader.ts` to retrieve line-level commit blame and timestamps for detected vulnerabilities, feeding Ayan's root-cause timeline.
+2. **Remote / GitHub Ingestion Support (Feature 1 Co-ownership):** Support ingesting remote repository diffs and shallow clones alongside local directories.
+3. **Cross-Repo Scanner & Discovery (Feature 11):** Implement multi-repo file matching in `src/advanced/memory/cross-repo-search.ts` to identify identical vulnerable code patterns across connected sister repositories.
 
-#### Dependencies on Others
-* **Team Lead:** For `RepairProposal`, `Patch`, `VerificationResult`, `IVerifierRunner` interfaces in `src/domain/`.
-* **Ayan:** For formatting diff previews in terminal output prior to the approval gate prompt.
-
-#### Readiness Checklist
-- [ ] Path validator strictly rejects patches attempting to write to `../../` or absolute system paths.
-- [ ] Interactive approval prompt halts execution until explicit affirmative user consent is given.
-- [ ] Process runner executes allowed commands and terminates cleanly when exceeding configured timeouts.
-- [ ] Status classifier accurately maps exit codes to `PASSED`, `FAILED`, `TIMED_OUT` with zero false passes.
+#### Integration Contracts & Dependencies
+* Supplies safe file lists and sanitized context buffers to Team Lead's analysis orchestrator.
+* Feeds Git blame metadata to Ayan's evidence timeline builder.
+* Exposes multi-repo scanning primitives for cross-repo immunization.
 
 ---
 
-## 🤝 Protocol for Cross-Module Collaboration
+## 🚀 Practical Implementation Order (Sprints 1 - 3)
 
-1. **Shared Contracts First:** Before writing implementation code, all contracts in `src/domain/` must be agreed upon and typechecked.
-2. **Mocking Dependencies:** Use interfaces and mock adapters (`MockScanner`, `MockAIProvider`) so team members can build and test in parallel without blocking each other.
-3. **No Unilateral Schema Changes:** Any modification to `Finding` or `RepairProposal` requires an agreement review by the team.
-4. **No Direct Default Branch Pushing:** Feature branches and peer-reviewed pull requests are strictly required.
+```mermaid
+flowchart TD
+    subgraph Sprint1 ["Sprint 1: Core Automation Loop"]
+        S1A["Feature 4: AI Repair Synthesis<br>(Lead + Pratham)"]
+        S1B["Feature 9: Confidence Calibration<br>(Lead + Pratham)"]
+        S1C["Feature 5: Docker Sandbox Runner<br>(Pratham)"]
+        S1A --> S1B
+    end
+
+    subgraph Sprint2 ["Sprint 2: Audit Intelligence & Memory"]
+        S2A["Feature 8: Root-Cause Blame Timeline<br>(Ayan + Maan)"]
+        S2B["Feature 2: Multi-Pass AI Agents<br>(Team Lead)"]
+        S2C["Feature 6: Learn from Fix Outcomes<br>(Ayan + Pratham)"]
+    end
+
+    subgraph Sprint3 ["Sprint 3: Enterprise Integration & Scale"]
+        S3A["Feature 7: Authorized GitHub PRs<br>(Team Lead + Pratham)"]
+        S3B["Feature 3: RAG Persistent Memory<br>(Ayan + Team Lead)"]
+        S3C["Feature 11: Cross-Repo Immunization<br>(Maan + Team Lead)"]
+    end
+
+    Sprint1 --> Sprint2
+    Sprint2 --> Sprint3
+```
+
+1. **Sprint 1 — Core Automation Loop (Immediate Priority):**
+   * Connect `GeminiAdapter.generateRepair()` to Pratham's `RepairOrchestrator` to produce real unified diffs from scan findings.
+   * Calibrate confidence scores using actual test execution outcomes.
+   * Complete Docker container sandbox fallback for environments requiring container isolation.
+2. **Sprint 2 — Audit Intelligence & Memory:**
+   * Enrich root-cause timelines with Git blame history to show exactly when and by whom defects were introduced.
+   * Activate specialized multi-pass analysis agents for security, performance, and bug investigation.
+   * Persist repair outcomes to build an empirical dataset of successful vs failed fixes.
+3. **Sprint 3 — Enterprise Integration & Scale:**
+   * Implement automated pull request publication via GitHub Apps with verified audit badges.
+   * Enable persistent RAG memory retrieval of historical patch patterns into context buffers.
+   * Implement cross-repository pattern scanning to proactively immunize connected repositories.
+
+---
+
+## 🔒 Collaboration & Code Governance Protocol
+
+1. **Modular Boundary Invariant:** No direct cross-module coupling. Communication between subsystems must flow through `src/domain/` interfaces or `src/application/` ports.
+2. **Zero In-Place Main Pushing:** All work must proceed via feature branches (`feature/<subsystem>/<feature-name>`), peer-reviewed PRs, and green CI runs.
+3. **Test-First Verification:** Every new module deliverable must arrive with dedicated unit tests in `tests/unit/` and pass lint and typecheck prior to merge.
+4. **Human In-The-Loop Safety:** Under no circumstances may automatic disk writes or arbitrary shell execution bypass the human approval gate or command allowlists.

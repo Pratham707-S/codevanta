@@ -310,19 +310,60 @@ export const sqlInjectionRule: SecurityRule = {
         continue;
       }
 
-      // Template literal interpolation inside query call
+      // 1. JavaScript & TypeScript SQL Injection patterns
       const templateLiteralQuery = /(?:(?:db|client|pool|connection|knex|prisma|sequelize)\s*\.\s*(?:query|raw|execute)|(?:query|execute|rawQuery)\s*\()\s*`[^`]*(?:SELECT|INSERT|UPDATE|DELETE|DROP|FROM|WHERE)\b[^`]*\$\{[^}]+\}/i.test(line);
-
-      // String concatenation directly passed to db query
       const concatenatedQueryCall = /(?:(?:db|client|pool|connection)\s*\.\s*(?:query|execute)|(?:query|execute)\s*\()\s*["']\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^"']*["']\s*\+\s*[a-zA-Z0-9_]/i.test(line);
-
-      // Dynamic SQL statement variable assignment: const query = "SELECT ... " + var
       const concatenatedQueryAssign = /(?:const|let|var)\s+[a-zA-Z0-9_]*(?:query|sql|cmd|stmt)\s*=\s*["']\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^"']*["']\s*\+\s*[a-zA-Z0-9_]/i.test(line);
-
-      // Dynamic SQL template literal assignment: const query = `SELECT ... ${var}`
       const templateLiteralQueryAssign = /(?:const|let|var)\s+[a-zA-Z0-9_]*(?:query|sql|cmd|stmt)\s*=\s*`[^`]*(?:SELECT|INSERT|UPDATE|DELETE|DROP|FROM|WHERE)\b[^`]*\$\{[^}]+\}/i.test(line);
 
-      if (templateLiteralQuery || concatenatedQueryCall || concatenatedQueryAssign || templateLiteralQueryAssign) {
+      // 2. Python SQL Injection patterns (cursor.execute, f-strings, %, + concatenation)
+      const isPython = !language || language === 'Python';
+      const pythonFStringQuery = isPython && /(?:cursor|db|conn|session)\.execute(?:_many)?\s*\(\s*f["'].*\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|FROM|WHERE)\b.*\{[^\}]+\}/i.test(line);
+      const pythonConcatQueryCall = isPython && /(?:cursor|db|conn|session)\.execute(?:_many)?\s*\(\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^"']*["']\s*\+\s*[a-zA-Z0-9_.]/i.test(line);
+      const pythonPercentFormatQuery = isPython && /(?:cursor|db|conn|session)\.execute\s*\(\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^"']*["']\s*%\s*[a-zA-Z0-9_.(]/i.test(line);
+      const pythonFStringAssign = isPython && /(?:query|sql|cmd|stmt)\s*=\s*f["'].*\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|FROM|WHERE)\b.*\{[^\}]+\}/i.test(line);
+      const pythonConcatAssign = isPython && /(?:query|sql|cmd|stmt)\s*=\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^"']*["']\s*\+\s*[a-zA-Z0-9_.]/i.test(line);
+
+      // 3. PHP SQL Injection patterns (mysqli_query, PDO query/exec, dot concatenation, $var interpolation)
+      const isPhp = !language || language === 'PHP';
+      const phpInterpolatedQuery = isPhp && /(?:mysqli_query|mysql_query|\$?(?:db|conn|pdo|stmt)->(?:query|exec))\s*\([^)]*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)\b.*\$[a-zA-Z_\x7f-\xff]/i.test(line);
+      const phpConcatQuery = isPhp && /(?:mysqli_query|mysql_query|\$?(?:db|conn|pdo|stmt)->(?:query|exec))\s*\([^)]*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^"']*["']\s*\.\s*\$[a-zA-Z_]/i.test(line);
+      const phpAssignConcatOrInterpolated = isPhp && /\$[a-zA-Z0-9_]*(?:query|sql|cmd|stmt)\s*=\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*(?:\.\s*\$|\$[a-zA-Z_])/i.test(line);
+
+      // 4. Java SQL Injection patterns (Statement.executeQuery/executeUpdate, JPA createQuery, String concat)
+      const isJava = !language || language === 'Java';
+      const javaStatementQuery = isJava && /\b(?:statement|stmt|conn)\.(?:executeQuery|executeUpdate|execute)\s*\(\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*?["']\s*\+\s*[a-zA-Z0-9_.]/i.test(line);
+      const javaJpaQuery = isJava && /\b(?:entityManager|em)\.(?:createQuery|createNativeQuery)\s*\(\s*["'].*\b(?:SELECT|FROM|WHERE)\b.*?["']\s*\+\s*[a-zA-Z0-9_.]/i.test(line);
+      const javaAssignConcat = isJava && /\b(?:String|var)\s+[a-zA-Z0-9_]*(?:query|sql|cmd|stmt)\s*=\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*?["']\s*\+\s*[a-zA-Z0-9_.]/i.test(line);
+
+      // 5. Go SQL Injection patterns (db.Query/Exec with fmt.Sprintf, string concat)
+      const isGo = !language || language === 'Go';
+      const goSprintfQuery = isGo && /\b(?:db|tx)\.(?:Query|QueryRow|Exec)\s*\(\s*fmt\.Sprintf\s*\(\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i.test(line);
+      const goConcatQuery = isGo && /\b(?:db|tx)\.(?:Query|QueryRow|Exec)\s*\(\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*?["']\s*\+\s*[a-zA-Z0-9_.]/i.test(line);
+      const goAssignSprintf = isGo && /[a-zA-Z0-9_]*(?:query|sql|stmt)\s*:=\s*fmt\.Sprintf\s*\(\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i.test(line);
+      const goAssignConcat = isGo && /[a-zA-Z0-9_]*(?:query|sql|stmt)\s*:=\s*["'].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*?["']\s*\+\s*[a-zA-Z0-9_.]/i.test(line);
+
+      if (
+        templateLiteralQuery ||
+        concatenatedQueryCall ||
+        concatenatedQueryAssign ||
+        templateLiteralQueryAssign ||
+        pythonFStringQuery ||
+        pythonConcatQueryCall ||
+        pythonPercentFormatQuery ||
+        pythonFStringAssign ||
+        pythonConcatAssign ||
+        phpInterpolatedQuery ||
+        phpConcatQuery ||
+        phpAssignConcatOrInterpolated ||
+        javaStatementQuery ||
+        javaJpaQuery ||
+        javaAssignConcat ||
+        goSprintfQuery ||
+        goConcatQuery ||
+        goAssignSprintf ||
+        goAssignConcat
+      ) {
         findings.push({
           id: `SEC-002-${context.relativePath.replace(/[\\/]/g, '-')}-L${i + 1}`,
           category: this.category,
@@ -330,7 +371,7 @@ export const sqlInjectionRule: SecurityRule = {
           title: 'Potential SQL Injection (Dynamic Query Concatenation)',
           path: context.relativePath,
           lineRange: { start: i + 1, end: i + 1 },
-          explanation: 'Raw SQL query constructed via dynamic string concatenation or template literal. This pattern can allow attackers to manipulate query logic or extract data. Use parameterized queries ($1, ? or prepared statements).',
+          explanation: 'Raw SQL query constructed via dynamic string concatenation, format operator, or template interpolation. This pattern can allow attackers to manipulate query logic or extract data. Use parameterized queries ($1, ? or prepared statements).',
           evidence: extractSnippet(context.lines, i),
           confidence: 0.92,
           status: 'UNRESOLVED',
@@ -363,14 +404,45 @@ export const commandInjectionRule: SecurityRule = {
         continue;
       }
 
-      // exec or execSync with dynamic template interpolation
+      // 1. JavaScript & TypeScript Command Injection patterns
       const execInterpolated = /\b(?:exec|execSync)\s*\(\s*`[^`]*\$\{[^}]+\}[^`]*`/.test(line);
-      // exec or execSync with dynamic string concatenation
       const execConcat = /\b(?:exec|execSync)\s*\(\s*["'][^"']*["']\s*\+\s*[a-zA-Z0-9_]/.test(line);
-      // eval with non-literal parameter
       const unsafeEval = /\beval\s*\(\s*(?!["'][a-zA-Z0-9_ =;]*["']\))\s*[a-zA-Z0-9_$(`]/.test(line);
 
-      if (execInterpolated || execConcat || unsafeEval) {
+      // 2. Python Command Injection patterns (os.system, os.popen, subprocess with shell=True)
+      const isPython = !language || language === 'Python';
+      const pythonOsCall = isPython && /\bos\.(?:system|popen)\s*\(\s*(?!["'][a-zA-Z0-9_\- /]+["']\s*\))[a-zA-Z0-9_$(`'"]/.test(line);
+      const pythonSubprocessShell = isPython && /\bsubprocess\.(?:run|Popen|call|check_call|check_output)\s*\([^)]*shell\s*=\s*True/i.test(line) &&
+        !/\bsubprocess\.(?:run|Popen|call|check_call|check_output)\s*\(\s*["'][a-zA-Z0-9_\- /]+["']\s*,\s*shell\s*=\s*True\s*\)/.test(line);
+
+      // 3. PHP Command Injection patterns (system, shell_exec, passthru, backticks with variables)
+      const isPhp = !language || language === 'PHP';
+      const phpFuncCall = isPhp && /\b(?:shell_exec|system|passthru|proc_open|popen)\s*\(\s*(?:["']?[^"'\n]*\$[a-zA-Z_]|["'][^"']*["']\s*\.\s*\$[a-zA-Z_])/i.test(line);
+      const phpBacktick = isPhp && /`[^`]*\$[a-zA-Z_][^`]*`/.test(line);
+
+      // 4. Java Command Injection patterns (Runtime.getRuntime().exec, ProcessBuilder with shell)
+      const isJava = !language || language === 'Java';
+      const javaRuntimeExecConcat = isJava && /Runtime\.getRuntime\(\)\.exec\s*\(\s*["'][^"']*["']\s*\+\s*[a-zA-Z0-9_.]/.test(line);
+      const javaRuntimeExecVar = isJava && /Runtime\.getRuntime\(\)\.exec\s*\(\s*(?!["'][a-zA-Z0-9_\- /]+["']\s*\))[a-zA-Z0-9_.]+\s*\)/.test(line);
+      const javaProcessBuilderShell = isJava && /new\s+ProcessBuilder\s*\([^)]*["'](?:sh|bash|cmd|powershell)["'][^)]*\+\s*[a-zA-Z0-9_.]/.test(line);
+
+      // 5. Go Command Injection patterns (exec.Command with shell and dynamic/concat/Sprintf argument)
+      const isGo = !language || language === 'Go';
+      const goExecCommandShell = isGo && /exec\.Command\s*\(\s*["'](?:sh|bash|cmd|powershell)["']\s*,\s*["']-[cC]["']\s*,\s*(?:fmt\.Sprintf|["'][^"']*["']\s*\+|[a-zA-Z0-9_.]+)/.test(line);
+
+      if (
+        execInterpolated ||
+        execConcat ||
+        unsafeEval ||
+        pythonOsCall ||
+        pythonSubprocessShell ||
+        phpFuncCall ||
+        phpBacktick ||
+        javaRuntimeExecConcat ||
+        javaRuntimeExecVar ||
+        javaProcessBuilderShell ||
+        goExecCommandShell
+      ) {
         findings.push({
           id: `SEC-003-${context.relativePath.replace(/[\\/]/g, '-')}-L${i + 1}`,
           category: this.category,
@@ -379,8 +451,8 @@ export const commandInjectionRule: SecurityRule = {
           path: context.relativePath,
           lineRange: { start: i + 1, end: i + 1 },
           explanation: unsafeEval
-            ? 'Use of eval() with dynamic input executes arbitrary JavaScript with full process privileges. Avoid eval().'
-            : 'Shell command constructed with dynamic variables passed to exec(). An attacker can append shell operators (; | &&) to execute arbitrary commands. Use execFile() or spawn() with explicit argument arrays.',
+            ? 'Use of eval() with dynamic input executes arbitrary code with full process privileges. Avoid eval().'
+            : 'Shell command constructed with dynamic variables passed to shell execution API. An attacker can append shell operators (; | &&) to execute arbitrary commands. Use parameterized process APIs with explicit argument arrays without a shell.',
           evidence: extractSnippet(context.lines, i),
           confidence: 0.95,
           status: 'UNRESOLVED',

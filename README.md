@@ -94,30 +94,34 @@ npx repoguard init
 
 ---
 
-## 15 Core Capabilities & Roadmap
+## 11 Core Capabilities & Implementation Status
 
-The architecture is designed around 15 capabilities, prioritizing a dependable local CLI vertical slice for the hackathon before scaling to cross-repository intelligence:
+The architecture is focused on **11 high-value capabilities**, prioritizing a dependable, evidence-backed vertical slice with verifiable code repairs:
 
-| # | Capability | Phase | Description |
-| :-: | :--- | :---: | :--- |
-| **01** | **Repository / GitHub Ingestion** | `MVP` | Safe, read-only scanning of local codebases; respects `.gitignore`, skips oversized (>1MB) and binary files. |
-| **02** | **Multi-Pass Investigation** | `MVP` | Static AST rules and AI agents analyzing bugs, OWASP security vulnerabilities, and performance bottlenecks. |
-| **03** | **RAG & Persistent Memory** | `Next` | Bounded retrieval of historical fixes, architectural conventions, and relevant context snippets without prompt bloating. |
-| **04** | **AI Repair Engineer** | `MVP` | Synthesizes precise unified diff patches bound to a specific finding, with changed-path lists and human-readable rationales. |
-| **05** | **Sandbox Verification** | `MVP` | Executes allowlisted verification checks (`test`, `lint`, `typecheck`) in disposable workspaces with strict timeouts (Subprocess & Docker). |
-| **06** | **Learn from Fix Outcomes** | `Next` | Records verified fixes and failed attempts, creating an empirical dataset of what works and what breaks. |
-| **07** | **Authorized GitHub Pull Requests** | `Next` | Publishes tested, human-approved patches to GitHub pull requests using least-privilege GitHub Apps. |
-| **08** | **Root-Cause Timeline** | `Next` | Chronologically links scan runs, findings, candidate diffs, verification logs, and commits into an audit trail. |
-| **09** | **Regression & Side-Effect Prediction** | `Later` | Evaluates downstream dependency impact and recommends targeted regression test suites for candidate patches. |
-| **10** | **Repository Knowledge Graph** | `Later` | AST-level symbol dependency graph mapping imports, calls, and module boundaries to quantify blast radius. |
-| **11** | **Evidence-Based Repair Confidence** | `MVP` | Computes explainable confidence metrics from evidence coverage, AST alignment, and test outcomes—not model self-assessment. |
-| **12** | **Human Approval Gate** | `Safety` | Non-negotiable confirmation gate. No file is ever modified on disk without explicit developer interactive approval. |
-| **13** | **Future Bug Predictor** | `Later` | Statistical hotspot analysis correlating code churn, complexity, and historical defect density. |
-| **14** | **Telemetry-Driven Rollback** | `Later` | Correlates operational alerts with recent releases to recommend automated, safe revert PRs. |
-| **15** | **Cross-Repo Ripple Immunization** | `Vision` | Identifies vulnerability patterns resolved in Repo A and proactively recommends immunization patches in authorized connected Repos B & C. |
+| # | Capability | Status | Phase / Sprint | Primary Owner | Implementation Scope |
+| :-: | :--- | :---: | :---: | :--- | :--- |
+| **01** | **Repository / GitHub Ingestion** | `Implemented (Local)`<br>`Partial (Remote)` | MVP (Sprint 3) | Manni (Maan) | Safe, read-only scanning of local codebases; respects `.gitignore`, skips oversized (>1MB) and binary files (`src/repository/`). Remote GitHub diff ingestion staged. |
+| **02** | **Multi-Pass Investigation** | `Implemented (Static)`<br>`Partial (Agents)` | MVP (Sprint 2) | Team Lead | Deterministic static AST security rules (SEC-001 - SEC-004) live (`src/analysis/rules/`). Multi-pass AI investigation agents staged. |
+| **03** | **RAG & Persistent Memory** | `Planned` | Sprint 3 | Ayan + Lead | Bounded retrieval of historical fixes, conventions, and context snippets without prompt bloating (`src/advanced/memory/`). |
+| **04** | **AI Repair Engineer** | `Partial (Engine Ready)` | MVP (Sprint 1) | Pratham + Lead | Unified diff parser, path traversal guard, and patch applicator live (`src/repair/`). Gemini patch synthesis prompt integration in progress. |
+| **05** | **Sandbox Verification** | `Implemented (Subprocess)`<br>`Partial (Docker)` | MVP (Sprint 1) | Pratham | Executes allowlisted verification checks (`test`, `lint`, `typecheck`) in disposable subprocesses with strict timeouts live (`src/verification/`). Docker sandbox runner staged. |
+| **06** | **Learn from Fix Outcomes** | `Planned` | Sprint 2 | Ayan + Pratham | Records verified fixes and failed attempts, creating an empirical dataset of what works and what breaks (`src/advanced/memory/success-failure-feedback.ts`). |
+| **07** | **Authorized GitHub Pull Requests** | `Planned` | Sprint 3 | Team Lead + Pratham | Publishes tested, human-approved patches to GitHub pull requests using least-privilege GitHub Apps (`src/advanced/github/`). |
+| **08** | **Root-Cause Timeline** | `Implemented (Basic)`<br>`Partial (Blame)` | Sprint 2 | Ayan + Manni | Chronologically links scan runs, findings, candidate diffs, and verification logs in reports (`src/report/evidence-timeline.ts`). Git blame lineage finishing. |
+| **09** | **Evidence-Based Repair Confidence** | `Implemented (Static)`<br>`Partial (Dynamic)` | MVP (Sprint 1) | Team Lead + Pratham | Computes explainable confidence metrics from evidence coverage and rule certainty (`src/analysis/confidence.ts`). Dynamic verification weighting in progress. |
+| **10** | **Human Approval Gate** | `Implemented` | Safety (Phase 2) | Pratham | Non-negotiable confirmation gate. No file is ever modified on disk without explicit developer interactive approval and diff preview (`src/repair/approval-gate.ts`). |
+| **11** | **Cross-Repo Ripple Immunization** | `Planned` | Sprint 3 | Manni + Lead | Identifies vulnerability patterns resolved in Repo A and proactively recommends immunization patches in connected Repos B & C (`src/advanced/memory/`). |
+
+### 🔮 Deferred Future Capabilities Roadmap
+
+The following four capabilities were originally evaluated but are **strictly deferred from the active implementation scope** to ensure focus on shipping our rock-solid 11-feature core:
+* **Regression & Side-Effect Prediction:** Downstream blast-radius evaluation across dependency trees.
+* **Repository Knowledge Graph:** Full codebase symbol call/import graph representation.
+* **Future Bug Predictor:** Statistical hotspot defect prediction correlating code churn and complexity.
+* **Telemetry-Driven Rollback:** Production telemetry ingestion and automated revert PR creation.
 
 > [!NOTE]
-> Capabilities marked `MVP` belong to the active development milestone. Advanced modules (`memory/`, `github/`, `background-jobs/`, `telemetry/`) are staged under [`src/advanced/`](src/advanced/).
+> Active advanced capabilities (`memory/`, `github/`, `background-jobs/`) are staged under [`src/advanced/`](src/advanced/).
 
 ---
 
@@ -127,10 +131,10 @@ The project enforces strict modular monolith boundaries to ensure clean parallel
 
 | Team Member | Role | Owned Modules | Core Responsibilities |
 | :--- | :--- | :--- | :--- |
-| **Team Lead** | CLI, Application, Domain & AI Analysis | `src/cli/`<br>`src/application/`<br>`src/domain/`<br>`src/analysis/`<br>`src/providers/`<br>`src/utils/` | CLI routing & terminal options (`commander`), shared domain contracts (`Zod`), use-case orchestration, Google Gemini model adapter, static rule runner, and system integration. |
-| **Pratham** | Repair & Sandbox Verification | `src/repair/`<br>`src/verification/`<br>`src/domain/repair/`<br>`src/domain/verification/` | Unified diff generation & parsing, path traversal security, interactive developer approval gate, allowlisted check runner with timeouts, and Docker sandbox adapter. |
-| **Ayan** | Configuration, Storage & Reporting | `src/config/`<br>`src/storage/`<br>`src/report/`<br>`examples/`<br>`.repoguard/` | Configuration schema & loading (`repoguard.config.json`), local state & run persistence (`.repoguard/state`), Markdown & JSON audit report builders. *(Note: CLI is owned by Team Lead).* |
-| **Manni** | Repository Scanning & Context Intelligence | `src/repository/`<br>`src/context/`<br>`src/domain/repository/` | Repository root detection, safe file traversal (`.gitignore`, binary skips, >1MB limit), Git state reader, bounded context builder, and regex/entropy secret redaction. |
+| **Team Lead** *(me)* | Architecture, CLI, Domain, AI Analysis & GitHub Integration | `src/cli/`<br>`src/application/`<br>`src/domain/`<br>`src/analysis/`<br>`src/providers/`<br>`src/advanced/github/`<br>`src/utils/` | System architecture, CLI command routing & terminal options (`commander`), shared domain contracts (`Zod`), multi-pass analysis agents & rule runner, Google Gemini model adapter, confidence calibration, authorized GitHub PR publisher, composition root. |
+| **Pratham** | Repair Engine & Sandbox Verification | `src/repair/`<br>`src/verification/`<br>`src/domain/repair.ts`<br>`src/domain/verification.ts` | Unified diff generation, parsing, & application, path traversal security, interactive developer approval gate, allowlisted check runner with timeouts, and Docker sandbox adapter. |
+| **Ayan** | Configuration, Storage, Reporting & Memory | `src/config/`<br>`src/storage/`<br>`src/report/`<br>`src/advanced/memory/`<br>`examples/`<br>`.repoguard/` | Configuration schema & loading (`repoguard.config.json`), local state & run persistence (`.repoguard/state`), Markdown, HTML & JSON audit report builders, evidence timeline visualization, and fix outcome feedback memory store. |
+| **Manni (Maan)** | Repository Scanning, Context & Cross-Repo | `src/repository/`<br>`src/context/`<br>`src/domain/repository.ts` | Repository root detection, safe file traversal (`.gitignore`, binary skips, >1MB limit), Git state & blame reader, bounded context builder, regex/entropy secret redaction, and cross-repo discovery. |
 
 ---
 
@@ -207,8 +211,7 @@ repoguard/
 │   └── advanced/                          # Staged Advanced Capabilities (Preserved)
 │       ├── background-jobs/               # Redis & BullMQ asynchronous worker queues
 │       ├── github/                        # Authorized GitHub App & PR publisher
-│       ├── memory/                        # Cross-repo vector memory & immunization
-│       └── telemetry/                     # Audit event stream & rollback policy
+│       └── memory/                        # Cross-repo vector memory & immunization
 │
 ├── tests/
 │   ├── unit/                              # Unit tests mapped 1:1 to module owners
