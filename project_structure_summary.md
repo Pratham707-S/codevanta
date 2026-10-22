@@ -31,7 +31,6 @@ flowchart TD
 
     subgraph Advanced ["Advanced Extensions"]
         Memory["src/advanced/memory/"]
-        Telemetry["src/advanced/telemetry/"]
         GitHub["src/advanced/github/"]
         Jobs["src/advanced/background-jobs/"]
     end
@@ -95,7 +94,7 @@ The application is structured into clearly separated layers adhering to Clean Ar
   - Assembles bounded context buffers (`context-builder.ts`) and performs entropy/regex secret redaction (`secret-redactor.ts`).
 - **[`src/analysis/`](file:///d:/repoguard/src/analysis)** & **[`src/providers/`](file:///d:/repoguard/src/providers)** *(Owner: Team Lead)*:
   - Rule execution engine (`rules/rule-runner.ts`, `suspicious-patterns.ts`), confidence scoring (`confidence.ts`), analysis orchestrator (`orchestrator.ts`).
-  - Specialized AI agents: `bug-investigation`, `performance-review`, `regression-risk`, `security-review`.
+  - Specialized AI agents: `bug-investigation`, `performance-review`, `security-review`.
   - LLM provider adapters: Gemini API adapter (`gemini-adapter.ts`) and deterministic mock adapter (`mock-adapter.ts`).
 - **[`src/repair/`](file:///d:/repoguard/src/repair)** *(Owner: Pratham)*:
   - Repair orchestrator (`repair-orchestrator.ts`), unified diff parsing (`patch-parser.ts`), patch applicator (`patch-applicator.ts`), terminal diff preview (`diff-preview.ts`), and interactive user approval prompt gate (`approval-gate.ts`).
@@ -110,7 +109,7 @@ The application is structured into clearly separated layers adhering to Clean Ar
 - **[`src/utils/`](file:///d:/repoguard/src/utils)** *(Owner: Team Lead)*:
   - Cross-cutting utilities: safe path resolution avoiding directory traversal (`safe-path.ts`), async helpers (`async.ts`), structured logging (`logger.ts`), and deterministic clocks (`clock.ts`).
 - **[`src/advanced/`](file:///d:/repoguard/src/advanced)** *(Post-MVP Extensions)*:
-  - Cross-repo memory and knowledge graphs (`memory/`), background workers (`background-jobs/`), telemetry with rollback triggers (`telemetry/`), and automated GitHub PR integration (`github/`).
+  - Cross-repo memory and immunization (`memory/`), background workers (`background-jobs/`), and automated GitHub PR integration (`github/`).
 
 ---
 
