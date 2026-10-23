@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   detectLanguage,
+  detectFileLanguage,
   detectProjectTools,
   findRepositoryRoot,
 } from '../../../src/repository/discovery.js';
@@ -158,6 +159,30 @@ describe('detectLanguage', () => {
         'LICENSE',
       ]),
     ).toEqual(['Rust']);
+  });
+});
+
+describe('detectFileLanguage', () => {
+  it('detects language from file extension case-insensitively', () => {
+    expect(detectFileLanguage('src/app.ts')).toBe('TypeScript');
+    expect(detectFileLanguage('SRC/MAIN.TS')).toBe('TypeScript');
+    expect(detectFileLanguage('server/app.py')).toBe('Python');
+    expect(detectFileLanguage('SERVER/APP.PY')).toBe('Python');
+    expect(detectFileLanguage('db/schema.sql')).toBe('SQL');
+    expect(detectFileLanguage('DB/SCHEMA.SQL')).toBe('SQL');
+    expect(detectFileLanguage('main.go')).toBe('Go');
+    expect(detectFileLanguage('App.java')).toBe('Java');
+    expect(detectFileLanguage('app.rb')).toBe('Ruby');
+    expect(detectFileLanguage('index.php')).toBe('PHP');
+    expect(detectFileLanguage('lib.rs')).toBe('Rust');
+  });
+
+  it('returns undefined for files without extensions or unrecognized extensions', () => {
+    expect(detectFileLanguage('Dockerfile')).toBeUndefined();
+    expect(detectFileLanguage('Makefile')).toBeUndefined();
+    expect(detectFileLanguage('README.md')).toBeUndefined();
+    expect(detectFileLanguage('image.png')).toBeUndefined();
+    expect(detectFileLanguage('')).toBeUndefined();
   });
 });
 

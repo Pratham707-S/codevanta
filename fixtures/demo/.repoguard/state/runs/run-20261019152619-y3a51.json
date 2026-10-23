@@ -1,0 +1,78 @@
+{
+  "runId": "run-20261019152619-y3a51",
+  "timestamp": "2026-10-19T15:26:19.886Z",
+  "projectName": "repoguard",
+  "repositoryRoot": "C:\\Users\\Ayan Kundu\\OneDrive\\Desktop\\Sheriyans AI school\\Repogaurd\\repoguard\\fixtures\\demo",
+  "filesScanned": 2,
+  "findingsCount": 4,
+  "durationMs": 49,
+  "summary": {
+    "critical": 2,
+    "high": 1,
+    "medium": 1,
+    "low": 0,
+    "info": 0
+  },
+  "findings": [
+    {
+      "id": "SEC-001-patterns.example.txt-L2",
+      "category": "Security / Hardcoded Secrets",
+      "severity": "CRITICAL",
+      "title": "Hardcoded AWS Access Key ID",
+      "path": "patterns.example.txt",
+      "lineRange": {
+        "start": 2,
+        "end": 2
+      },
+      "explanation": "Recognizable AWS Access Key ID committed to source. Committed credentials allow persistent unauthorized cloud resource access. Move credentials to environment variables.",
+      "evidence": "  1 | // SEC-001: Synthetic AWS-shaped value; this is not a credential.\r\n> 2 | const awsAccessKey = \"AKIA****************\";\r\n  3 | \r\n  4 | // SEC-002: Illustrates unsafe SQL construction; do not execute this sample.\r",
+      "confidence": 0.98,
+      "status": "UNRESOLVED"
+    },
+    {
+      "id": "SEC-003-patterns.example.txt-L8",
+      "category": "Security / Command Injection",
+      "severity": "CRITICAL",
+      "title": "Command Injection via Dynamic Shell Execution",
+      "path": "patterns.example.txt",
+      "lineRange": {
+        "start": 8,
+        "end": 8
+      },
+      "explanation": "Shell command constructed with dynamic variables passed to exec(). An attacker can append shell operators (; | &&) to execute arbitrary commands. Use execFile() or spawn() with explicit argument arrays.",
+      "evidence": "  6 | \r\n  7 | // SEC-003: Harmless fixed command text, included only as inert scanner input.\r\n> 8 | exec(`echo ${userInput}`);\r\n  9 | \r\n  10 | // SEC-004: Empty catch example, included only as inert scanner input.\r",
+      "confidence": 0.95,
+      "status": "UNRESOLVED"
+    },
+    {
+      "id": "SEC-002-patterns.example.txt-L5",
+      "category": "Security / SQL Injection",
+      "severity": "HIGH",
+      "title": "Potential SQL Injection (Dynamic Query Concatenation)",
+      "path": "patterns.example.txt",
+      "lineRange": {
+        "start": 5,
+        "end": 5
+      },
+      "explanation": "Raw SQL query constructed via dynamic string concatenation or template literal. This pattern can allow attackers to manipulate query logic or extract data. Use parameterized queries ($1, ? or prepared statements).",
+      "evidence": "  3 | \r\n  4 | // SEC-002: Illustrates unsafe SQL construction; do not execute this sample.\r\n> 5 | const query = \"SELECT * FROM users WHERE id = \" + userId;\r\n  6 | \r\n  7 | // SEC-003: Harmless fixed command text, included only as inert scanner input.\r",
+      "confidence": 0.92,
+      "status": "UNRESOLVED"
+    },
+    {
+      "id": "SEC-004-patterns.example.txt-L11",
+      "category": "Reliability / Error Handling",
+      "severity": "MEDIUM",
+      "title": "Empty Catch Block (Suppressed Exceptions)",
+      "path": "patterns.example.txt",
+      "lineRange": {
+        "start": 11,
+        "end": 11
+      },
+      "explanation": "An empty catch block silently swallows runtime errors, concealing underlying bugs, failed I/O, or broken security assumptions. Log the exception or handle it explicitly.",
+      "evidence": "  9 | \r\n  10 | // SEC-004: Empty catch example, included only as inert scanner input.\r\n> 11 | try { operation(); } catch (error) {}",
+      "confidence": 0.88,
+      "status": "UNRESOLVED"
+    }
+  ]
+}

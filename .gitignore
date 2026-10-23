@@ -58,3 +58,7 @@ Thumbs.db
 !.repoguard/reports/.gitkeep
 .repoguard/cache/*
 !.repoguard/cache/.gitkeep
+
+
+#fixtures
+*.fixtures

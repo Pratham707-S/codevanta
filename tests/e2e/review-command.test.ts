@@ -7,6 +7,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { writeFile, rm, mkdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { createCliProgram } from '../../src/cli/cli.js';
 import { RunStore, ScanRunRecord } from '../../src/storage/run-store.js';
 
@@ -115,5 +118,51 @@ describe('E2E: repoguard review command', () => {
     expect(fullOutput).toContain('RepoGuard Human-in-the-Loop Review Gate');
     expect(fullOutput).toContain('explicitly APPROVED');
     expect(fullOutput).toContain('REPAIR-SEC-003-server-L42');
+  });
+
+  it('executes review command with --yes and successfully applies patch when target file exists on disk', async () => {
+    const fixtureDir = join(process.cwd(), 'tests', 'fixtures');
+    await mkdir(fixtureDir, { recursive: true });
+    const targetFile = join(fixtureDir, 'review-apply-target.ts');
+    await writeFile(targetFile, 'const unvalidatedInput = req.body;\n');
+
+    try {
+      const applyRun: ScanRunRecord = {
+        runId: 'run-test-finding-apply-success',
+        timestamp: new Date(Date.now() + 4000).toISOString(),
+        projectName: 'review-apply-test',
+        repositoryRoot: process.cwd(),
+        filesScanned: 1,
+        findingsCount: 1,
+        durationMs: 10,
+        summary: { critical: 0, high: 1, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'SEC-004-target-L1',
+            category: 'Security / Input Validation',
+            severity: 'HIGH',
+            title: 'Unvalidated Request Body Usage',
+            path: 'tests/fixtures/review-apply-target.ts',
+            lineRange: { start: 1, end: 1 },
+            explanation: 'Unvalidated body used directly.',
+          },
+        ],
+      };
+      await runStore.saveRun(applyRun);
+
+      const program = createCliProgram('0.1.2');
+      await program.parseAsync(['node', 'repoguard', 'review', '--yes']);
+
+      const fullOutput = logOutput.join('\n');
+      expect(fullOutput).toContain('explicitly APPROVED');
+      expect(fullOutput).toContain('Patch successfully applied to disk');
+
+      const contentAfter = await readFile(targetFile, 'utf8');
+      expect(contentAfter).toContain('const validatedInput = schema.parse(req.body);');
+    } finally {
+      if (existsSync(targetFile)) {
+        await rm(targetFile, { force: true });
+      }
+    }
   });
 });

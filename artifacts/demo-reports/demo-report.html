@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RepoGuard Audit Report — repoguard</title>
+  <style>
+    :root {
+      --canvas: #f6f3eb;
+      --canvas-subtle: #efebe0;
+      --card-bg: #ffffff;
+      --text: #201e1b;
+      --text-muted: #6b645b;
+      --text-subtle: #968e83;
+      --border: #e4dfd3;
+      --border-subtle: #ebe7de;
+      --critical: #c5221f;
+      --critical-bg: #fdf2f2;
+      --critical-border: #f8b4b4;
+      --high: #b45309;
+      --high-bg: #fef8ee;
+      --high-border: #fcd34d;
+      --medium: #d97706;
+      --medium-bg: #fffbeb;
+      --medium-border: #fde68a;
+      --low: #1d4ed8;
+      --low-bg: #eff6ff;
+      --low-border: #bfdbfe;
+      --info: #44403c;
+      --info-bg: #f5f5f4;
+      --info-border: #d6d3d1;
+      --success: #15803d;
+      --success-bg: #f0fdf4;
+      --success-border: #bbf7d0;
+      --primary: #201e1b;
+      --primary-hover: #000000;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--canvas);
+      background-image: radial-gradient(circle at 10% 20%, rgba(255,255,255,0.7) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(235,228,214,0.5) 0%, transparent 50%);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2.5rem 1.5rem;
+      min-height: 100vh;
+    }
+    .container { max-width: 980px; margin: 0 auto; }
+    header {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem 2rem;
+      margin-bottom: 1.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      box-shadow: 0 1px 3px rgba(32, 30, 27, 0.04), 0 6px 16px rgba(32, 30, 27, 0.02);
+    }
+    .brand-eyebrow {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .header-title-area { flex: 1; min-width: 280px; }
+    h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 0.6rem;
+    }
+    .meta-bar span strong { color: var(--text); font-weight: 600; }
+    .header-actions { display: flex; gap: 0.6rem; align-items: center; }
+    .btn {
+      padding: 0.55rem 1.1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fafaf9;
+      border: 1px solid var(--primary);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+    }
+    .btn-secondary {
+      background: #faf8f5;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: #f2eee6;
+      border-color: #d8d2c4;
+    }
+    .dashboard-section { margin-bottom: 2rem; }
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      margin-bottom: 0.85rem;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.75rem;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      text-align: left;
+      box-shadow: 0 1px 2px rgba(32, 30, 27, 0.03);
+    }
+    .stat-val { font-size: 1.75rem; font-weight: 700; line-height: 1.1; margin-bottom: 0.2rem; }
+    .stat-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .finding-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.35rem 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(32, 30, 27, 0.03);
+    }
+    .border-critical { border-left: 4px solid var(--critical); }
+    .border-high { border-left: 4px solid var(--high); }
+    .border-medium { border-left: 4px solid var(--medium); }
+    .border-low { border-left: 4px solid var(--low); }
+    .border-info { border-left: 4px solid var(--info); }
+    .finding-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+    .finding-number { color: var(--text-subtle); font-weight: 600; font-size: 0.9rem; }
+    .finding-title { font-size: 1.05rem; font-weight: 600; color: var(--text); flex: 1; }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.55rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: inline-block;
+    }
+    .badge-critical { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-border); }
+    .badge-high { background: var(--high-bg); color: var(--high); border: 1px solid var(--high-border); }
+    .badge-medium { background: var(--medium-bg); color: var(--medium); border: 1px solid var(--medium-border); }
+    .badge-low { background: var(--low-bg); color: var(--low); border: 1px solid var(--low-border); }
+    .badge-info { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
+    .badge-resolved { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .badge-clean { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .confidence-tag {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--canvas);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .finding-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .finding-meta code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--canvas-subtle);
+      color: #2e2a24;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .finding-explanation { font-size: 0.95rem; color: #38342f; margin-bottom: 0.85rem; line-height: 1.5; }
+    pre.evidence {
+      background: #1c1917;
+      border: 1px solid #292524;
+      border-radius: 6px;
+      padding: 0.85rem 1rem;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+      color: #7dd3fc;
+      margin-bottom: 0.85rem;
+    }
+    .remediation-box {
+      background: #fdfaf3;
+      border: 1px solid #e8dec8;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-size: 0.88rem;
+      color: #4a4133;
+    }
+    .remediation-header {
+      font-weight: 700;
+      color: #383024;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-bottom: 0.35rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .remediation-box p { line-height: 1.5; margin: 0; }
+    .comparison-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(32, 30, 27, 0.03);
+    }
+    .comparison-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .comparison-meta code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--canvas-subtle);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+    .comparison-metrics {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .metric-pill {
+      font-size: 0.85rem;
+      padding: 0.35rem 0.8rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .metric-new { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-border); }
+    .metric-resolved { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .metric-unchanged { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
+    .timeline-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .timeline-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.8rem;
+      background: var(--canvas);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .timeline-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+    .timeline-title { flex: 1; min-width: 200px; color: var(--text); }
+    .timeline-title code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--canvas-subtle);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.8rem;
+    }
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(32, 30, 27, 0.03);
+    }
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    .history-table th {
+      background: var(--canvas-subtle);
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+    }
+    .history-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text);
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+    .current-run-row { background: #faf7f0; }
+    .history-table code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--canvas-subtle);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .mini-badges { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .empty-state {
+      background: var(--card-bg);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      padding: 3.5rem 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      box-shadow: 0 1px 3px rgba(32, 30, 27, 0.02);
+    }
+    .empty-icon { font-size: 2.75rem; margin-bottom: 0.75rem; }
+    .empty-state h3 { color: var(--text); font-size: 1.2rem; font-weight: 700; margin-bottom: 0.35rem; }
+    footer {
+      text-align: center;
+      margin-top: 2.5rem;
+      font-size: 0.8rem;
+      color: var(--text-subtle);
+    }
+    @media print {
+      body { background: #fff; color: #000; padding: 0; }
+      .header-actions { display: none; }
+      .stat-card, .finding-card, .comparison-card, .table-container { border: 1px solid #ccc; background: #fff; color: #000; box-shadow: none; }
+      pre.evidence { background: #f4f4f4; color: #000; border-color: #ccc; }
+      .remediation-box { background: #f9f9f9; border-color: #ddd; color: #111; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-title-area">
+        <div class="brand-eyebrow">🛡️ RepoGuard Autonomous Reliability & Security</div>
+        <h1>repoguard</h1>
+        <div class="meta-bar">
+          <span><strong>Run ID:</strong> <code>run-20261019152619-y3a51</code></span>
+          <span><strong>Timestamp:</strong> 2026-10-19T15:26:19.886Z</span>
+          <span><strong>Files Scanned:</strong> 2</span>
+          <span><strong>Duration:</strong> 49ms</span>
+          <span><strong>Total Findings:</strong> 4</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="downloadJsonReport()">📥 Download JSON</button>
+        <button class="btn btn-secondary" onclick="window.print()">🖨️ Print / PDF</button>
+      </div>
+    </header>
+
+    <div class="stats-grid">
+      <div class="stat-card" style="border-top: 3px solid var(--primary)">
+        <div class="stat-val" style="color: var(--primary)">4</div>
+        <div class="stat-label">Total Findings</div>
+      </div>
+      <div class="stat-card" style="border-top: 3px solid var(--critical)">
+        <div class="stat-val" style="color: var(--critical)">2</div>
+        <div class="stat-label">Critical</div>
+      </div>
+      <div class="stat-card" style="border-top: 3px solid var(--high)">
+        <div class="stat-val" style="color: var(--high)">1</div>
+        <div class="stat-label">High</div>
+      </div>
+      <div class="stat-card" style="border-top: 3px solid var(--medium)">
+        <div class="stat-val" style="color: var(--medium)">1</div>
+        <div class="stat-label">Medium</div>
+      </div>
+      <div class="stat-card" style="border-top: 3px solid var(--low)">
+        <div class="stat-val" style="color: var(--low)">0</div>
+        <div class="stat-label">Low</div>
+      </div>
+      <div class="stat-card" style="border-top: 3px solid var(--info)">
+        <div class="stat-val" style="color: var(--info)">0</div>
+        <div class="stat-label">Info</div>
+      </div>
+    </div>
+
+    
+
+    
+
+    <section class="dashboard-section">
+      <h2 class="section-title">Audit Findings & Remediation</h2>
+      
+          <div class="finding-card border-critical">
+            <div class="finding-header">
+              <span class="finding-number">#1</span>
+              <span class="badge badge-critical">CRITICAL</span>
+              <span class="finding-title">Hardcoded AWS Access Key ID</span>
+              <span class="confidence-tag">Confidence: 98%</span>
+            </div>
+            <div class="finding-meta">
+              <span><strong>Category:</strong> Security / Hardcoded Secrets</span>
+              <span><strong>Location:</strong> <code>patterns.example.txt</code> (Line 2)</span>
+              <span><strong>ID:</strong> <code>SEC-001-patterns.example.txt-L2</code></span>
+            </div>
+            <div class="finding-explanation">
+              <p>Recognizable AWS Access Key ID committed to source. Committed credentials allow persistent unauthorized cloud resource access. Move credentials to environment variables.</p>
+            </div>
+            <pre class="evidence"><code>  1 | // SEC-001: Synthetic AWS-shaped value; this is not a credential.
+&gt; 2 | const awsAccessKey = &quot;AKIA****************&quot;;
+  3 | 
+  4 | // SEC-002: Illustrates unsafe SQL construction; do not execute this sample.</code></pre>
+            
+          <div class="remediation-box">
+            <div class="remediation-header">
+              <span class="remediation-icon">💡</span>
+              <strong>Remediation Recommendation</strong>
+            </div>
+            <p>Immediately revoke and rotate the exposed credential. Move sensitive values to secure environment variables (.env) or a secret manager (e.g., AWS Secrets Manager, HashiCorp Vault), and ensure configuration files containing secrets are added to .gitignore.</p>
+          </div>
+        
+          </div>
+        
+
+          <div class="finding-card border-critical">
+            <div class="finding-header">
+              <span class="finding-number">#2</span>
+              <span class="badge badge-critical">CRITICAL</span>
+              <span class="finding-title">Command Injection via Dynamic Shell Execution</span>
+              <span class="confidence-tag">Confidence: 95%</span>
+            </div>
+            <div class="finding-meta">
+              <span><strong>Category:</strong> Security / Command Injection</span>
+              <span><strong>Location:</strong> <code>patterns.example.txt</code> (Line 8)</span>
+              <span><strong>ID:</strong> <code>SEC-003-patterns.example.txt-L8</code></span>
+            </div>
+            <div class="finding-explanation">
+              <p>Shell command constructed with dynamic variables passed to exec(). An attacker can append shell operators (; | &amp;&amp;) to execute arbitrary commands. Use execFile() or spawn() with explicit argument arrays.</p>
+            </div>
+            <pre class="evidence"><code>  6 | 
+  7 | // SEC-003: Harmless fixed command text, included only as inert scanner input.
+&gt; 8 | exec(`echo ${userInput}`);
+  9 | 
+  10 | // SEC-004: Empty catch example, included only as inert scanner input.</code></pre>
+            
+          <div class="remediation-box">
+            <div class="remediation-header">
+              <span class="remediation-icon">💡</span>
+              <strong>Remediation Recommendation</strong>
+            </div>
+            <p>Refactor query construction to use parameterized queries, prepared statements, or an Object-Relational Mapper (ORM) instead of raw string concatenation or template interpolation.</p>
+          </div>
+        
+          </div>
+        
+
+          <div class="finding-card border-high">
+            <div class="finding-header">
+              <span class="finding-number">#3</span>
+              <span class="badge badge-high">HIGH</span>
+              <span class="finding-title">Potential SQL Injection (Dynamic Query Concatenation)</span>
+              <span class="confidence-tag">Confidence: 92%</span>
+            </div>
+            <div class="finding-meta">
+              <span><strong>Category:</strong> Security / SQL Injection</span>
+              <span><strong>Location:</strong> <code>patterns.example.txt</code> (Line 5)</span>
+              <span><strong>ID:</strong> <code>SEC-002-patterns.example.txt-L5</code></span>
+            </div>
+            <div class="finding-explanation">
+              <p>Raw SQL query constructed via dynamic string concatenation or template literal. This pattern can allow attackers to manipulate query logic or extract data. Use parameterized queries ($1, ? or prepared statements).</p>
+            </div>
+            <pre class="evidence"><code>  3 | 
+  4 | // SEC-002: Illustrates unsafe SQL construction; do not execute this sample.
+&gt; 5 | const query = &quot;SELECT * FROM users WHERE id = &quot; + userId;
+  6 | 
+  7 | // SEC-003: Harmless fixed command text, included only as inert scanner input.</code></pre>
+            
+          <div class="remediation-box">
+            <div class="remediation-header">
+              <span class="remediation-icon">💡</span>
+              <strong>Remediation Recommendation</strong>
+            </div>
+            <p>Refactor query construction to use parameterized queries, prepared statements, or an Object-Relational Mapper (ORM) instead of raw string concatenation or template interpolation.</p>
+          </div>
+        
+          </div>
+        
+
+          <div class="finding-card border-medium">
+            <div class="finding-header">
+              <span class="finding-number">#4</span>
+              <span class="badge badge-medium">MEDIUM</span>
+              <span class="finding-title">Empty Catch Block (Suppressed Exceptions)</span>
+              <span class="confidence-tag">Confidence: 88%</span>
+            </div>
+            <div class="finding-meta">
+              <span><strong>Category:</strong> Reliability / Error Handling</span>
+              <span><strong>Location:</strong> <code>patterns.example.txt</code> (Line 11)</span>
+              <span><strong>ID:</strong> <code>SEC-004-patterns.example.txt-L11</code></span>
+            </div>
+            <div class="finding-explanation">
+              <p>An empty catch block silently swallows runtime errors, concealing underlying bugs, failed I/O, or broken security assumptions. Log the exception or handle it explicitly.</p>
+            </div>
+            <pre class="evidence"><code>  9 | 
+  10 | // SEC-004: Empty catch example, included only as inert scanner input.
+&gt; 11 | try { operation(); } catch (error) {}</code></pre>
+            
+          <div class="remediation-box">
+            <div class="remediation-header">
+              <span class="remediation-icon">💡</span>
+              <strong>Remediation Recommendation</strong>
+            </div>
+            <p>Avoid swallowing exceptions silently in empty catch blocks. Log the caught error with contextual details, handle graceful degradation, or rethrow the error for centralized error handling.</p>
+          </div>
+        
+          </div>
+        
+    </section>
+
+    <footer>
+      Report generated autonomously by RepoGuard Platform. Confidential and verified evidence-backed audit.
+    </footer>
+  </div>
+
+  <script>
+    const reportData = {"runId":"run-20261019152619-y3a51","timestamp":"2026-10-19T15:26:19.886Z","projectName":"repoguard","repositoryRoot":"C:\\Users\\Ayan Kundu\\OneDrive\\Desktop\\Sheriyans AI school\\Repogaurd\\repoguard\\fixtures\\demo","filesScanned":2,"findingsCount":4,"durationMs":49,"summary":{"critical":2,"high":1,"medium":1,"low":0,"info":0},"findings":[{"id":"SEC-001-patterns.example.txt-L2","category":"Security / Hardcoded Secrets","severity":"CRITICAL","title":"Hardcoded AWS Access Key ID","path":"patterns.example.txt","lineRange":{"start":2,"end":2},"explanation":"Recognizable AWS Access Key ID committed to source. Committed credentials allow persistent unauthorized cloud resource access. Move credentials to environment variables.","evidence":"  1 | // SEC-001: Synthetic AWS-shaped value; this is not a credential.\r\n> 2 | const awsAccessKey = \"AKIA****************\";\r\n  3 | \r\n  4 | // SEC-002: Illustrates unsafe SQL construction; do not execute this sample.\r","confidence":0.98,"status":"UNRESOLVED"},{"id":"SEC-003-patterns.example.txt-L8","category":"Security / Command Injection","severity":"CRITICAL","title":"Command Injection via Dynamic Shell Execution","path":"patterns.example.txt","lineRange":{"start":8,"end":8},"explanation":"Shell command constructed with dynamic variables passed to exec(). An attacker can append shell operators (; | &&) to execute arbitrary commands. Use execFile() or spawn() with explicit argument arrays.","evidence":"  6 | \r\n  7 | // SEC-003: Harmless fixed command text, included only as inert scanner input.\r\n> 8 | exec(`echo ${userInput}`);\r\n  9 | \r\n  10 | // SEC-004: Empty catch example, included only as inert scanner input.\r","confidence":0.95,"status":"UNRESOLVED"},{"id":"SEC-002-patterns.example.txt-L5","category":"Security / SQL Injection","severity":"HIGH","title":"Potential SQL Injection (Dynamic Query Concatenation)","path":"patterns.example.txt","lineRange":{"start":5,"end":5},"explanation":"Raw SQL query constructed via dynamic string concatenation or template literal. This pattern can allow attackers to manipulate query logic or extract data. Use parameterized queries ($1, ? or prepared statements).","evidence":"  3 | \r\n  4 | // SEC-002: Illustrates unsafe SQL construction; do not execute this sample.\r\n> 5 | const query = \"SELECT * FROM users WHERE id = \" + userId;\r\n  6 | \r\n  7 | // SEC-003: Harmless fixed command text, included only as inert scanner input.\r","confidence":0.92,"status":"UNRESOLVED"},{"id":"SEC-004-patterns.example.txt-L11","category":"Reliability / Error Handling","severity":"MEDIUM","title":"Empty Catch Block (Suppressed Exceptions)","path":"patterns.example.txt","lineRange":{"start":11,"end":11},"explanation":"An empty catch block silently swallows runtime errors, concealing underlying bugs, failed I/O, or broken security assumptions. Log the exception or handle it explicitly.","evidence":"  9 | \r\n  10 | // SEC-004: Empty catch example, included only as inert scanner input.\r\n> 11 | try { operation(); } catch (error) {}","confidence":0.88,"status":"UNRESOLVED"}]};
+    function downloadJsonReport() {
+      const jsonString = JSON.stringify(reportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = url;
+      downloadAnchor.download = "repoguard-" + (reportData.runId || 'scan') + ".json";
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

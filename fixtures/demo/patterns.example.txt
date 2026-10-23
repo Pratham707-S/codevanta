@@ -1,0 +1,11 @@
+// SEC-001: Synthetic AWS-shaped value; this is not a credential.
+const awsAccessKey = "AKIA0000000000000000";
+
+// SEC-002: Illustrates unsafe SQL construction; do not execute this sample.
+const query = "SELECT * FROM users WHERE id = " + userId;
+
+// SEC-003: Harmless fixed command text, included only as inert scanner input.
+exec(`echo ${userInput}`);
+
+// SEC-004: Empty catch example, included only as inert scanner input.
+try { operation(); } catch (error) {}
