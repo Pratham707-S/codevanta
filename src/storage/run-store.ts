@@ -164,7 +164,18 @@ export class RunStore {
 
     const serialized = JSON.stringify(record, null, 2);
     await fs.writeFile(tempPath, serialized, 'utf8');
-    await fs.rename(tempPath, filePath);
+    try {
+      await fs.rename(tempPath, filePath);
+    } catch (err: unknown) {
+      const error = err as NodeJS.ErrnoException;
+      if (error.code === 'EPERM' || error.code === 'EACCES') {
+        await fs.unlink(filePath).catch(() => {});
+        await fs.rename(tempPath, filePath);
+      } else {
+        throw err;
+      }
+    }
+
     return filePath;
   }
 
