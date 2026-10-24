@@ -9,6 +9,36 @@
 import { promises as fs } from 'node:fs';
 import { resolve, join } from 'node:path';
 
+export interface GitBlameMetadata {
+  commitSha?: string;
+  author?: string;
+  date?: string;
+  line?: number;
+  summary?: string;
+}
+
+export interface VerificationOutcome {
+  verified?: boolean;
+  command?: string;
+  exitCode?: number;
+  durationMs?: number;
+  summary?: string;
+}
+
+export interface TimelineEventRecord {
+  timestamp?: string;
+  step?: string;
+  detail?: string;
+  status?: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  durationMs?: number;
+  commitSha?: string;
+  author?: string;
+  commitDate?: string;
+  filePath?: string;
+  line?: number;
+  findingId?: string;
+}
+
 export interface StorageFinding {
   id: string;
   category: string;
@@ -21,6 +51,19 @@ export interface StorageFinding {
   confidence?: number;
   status?: string;
   recommendation?: string;
+
+  // Intelligence & Root-Cause Attributes
+  cwe?: string;
+  ruleId?: string;
+  source?: string;
+  agentName?: string;
+  blame?: GitBlameMetadata;
+  commitSha?: string;
+  patch?: string;
+  suggestedFix?: string;
+  verification?: VerificationOutcome;
+  tags?: string[];
+  fingerprint?: string;
 }
 
 export interface RunSummaryItem {
@@ -37,6 +80,7 @@ export interface RunSummaryItem {
     low: number;
     info: number;
   };
+  verifiedFixesCount?: number;
 }
 
 export interface ScanRunRecord {
@@ -55,6 +99,8 @@ export interface ScanRunRecord {
     low: number;
     info: number;
   };
+  timeline?: TimelineEventRecord[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface RunStoreOptions {
