@@ -9,6 +9,7 @@
 export {
   StateStore,
   type ProjectState,
+  type StateStoreOptions,
   INITIAL_STATE,
 } from './state-store.js';
 
@@ -17,4 +18,8 @@ export {
   type StorageFinding,
   type ScanRunRecord,
   type RunSummaryItem,
+  type RunStoreOptions,
+  type GitBlameMetadata,
+  type VerificationOutcome,
+  type TimelineEventRecord,
 } from './run-store.js';
