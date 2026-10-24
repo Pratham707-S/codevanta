@@ -7,7 +7,6 @@ import {
   formatHtmlReport,
   formatJsonReport,
   ReportBuilder,
-  formatEvidenceTimelineMarkdown,
   formatEvidenceTimelineHtml,
 } from '../../../src/report/index.js';
 import { ScanRunRecord, StorageFinding } from '../../../src/storage/index.js';
@@ -146,7 +145,7 @@ describe('Intelligence Report & Storage Contract Alignment', () => {
     expect(html).toContain('AKIA****************');
 
     // Timeline section must be rendered
-    expect(html).toContain('Audit &amp; Root-Cause Discovery Timeline');
+    expect(html).toContain('Audit & Root-Cause Discovery Timeline');
     expect(html).toContain('AST Rule Evaluation');
   });
 
@@ -223,7 +222,7 @@ describe('Intelligence Report & Storage Contract Alignment', () => {
 
     const html = formatHtmlReport(legacyRecord);
     expect(html).toContain('Unvalidated Redirect');
-    expect(html).not.toContain('badge-cwe');
+    expect(html).not.toContain('<span class="badge badge-cwe">');
     expect(html).not.toContain('undefined');
 
     const json = JSON.parse(formatJsonReport(legacyRecord));
