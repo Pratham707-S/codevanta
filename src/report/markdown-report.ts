@@ -8,6 +8,7 @@
 
 import { ScanRunRecord } from '../storage/run-store.js';
 import { redactSecretEvidence } from './redaction.js';
+import { formatEvidenceTimelineMarkdown, TimelineEvent } from './evidence-timeline.js';
 
 export interface MarkdownReportOptions {
   includeEvidence?: boolean;
@@ -53,6 +54,12 @@ export function formatMarkdownReport(
   if (findings.length === 0) {
     lines.push('✅ **No reliability or security findings discovered.** Repository passed all configured checks cleanly.');
     lines.push('');
+    if (record.timeline && record.timeline.length > 0) {
+      lines.push(formatEvidenceTimelineMarkdown(record.timeline as TimelineEvent[]));
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('*Report generated autonomously by RepoGuard Software Reliability & Security Platform.*');
     return lines.join('\n');
   }
 
@@ -70,21 +77,46 @@ export function formatMarkdownReport(
   );
 
   sortedFindings.forEach((finding, index) => {
-    // FIXED: Added space between badge and title
     lines.push(`### ${index + 1}. [${finding.severity}] ${finding.title}`);
     lines.push('');
     lines.push(`- **ID:** \`${finding.id}\``);
+    if (finding.ruleId) {
+      lines.push(`- **Rule ID:** \`${finding.ruleId}\``);
+    }
+    if (finding.cwe) {
+      lines.push(`- **CWE:** \`${finding.cwe}\``);
+    }
     lines.push(`- **Category:** \`${finding.category}\``);
+    if (finding.agentName || finding.source) {
+      lines.push(`- **Detection Source:** \`${finding.agentName || finding.source}\``);
+    }
     lines.push(`- **Location:** \`${finding.path}\`${finding.lineRange ? ` (L${finding.lineRange.start}-${finding.lineRange.end})` : ''}`);
     
     if (finding.confidence !== undefined) {
-      // FIXED: Added multiplication operator and handled decimal vs percentage values safely
       const confidenceVal = finding.confidence <= 1 ? finding.confidence * 100 : finding.confidence;
       lines.push(`- **Confidence Score:** \`${confidenceVal.toFixed(0)}%\``);
+    }
+
+    if (finding.blame) {
+      const shaStr = finding.blame.commitSha ? `\`${finding.blame.commitSha.slice(0, 8)}\`` : '`unknown`';
+      const authorStr = finding.blame.author ? ` by ${finding.blame.author}` : '';
+      const dateStr = finding.blame.date ? ` on ${finding.blame.date}` : '';
+      lines.push(`- **Git Blame Origin:** ${shaStr}${authorStr}${dateStr}`);
+    } else if (finding.commitSha) {
+      lines.push(`- **Git Commit:** \`${finding.commitSha.slice(0, 8)}\``);
+    }
+
+    if (finding.verification) {
+      const statusIcon = finding.verification.verified ? '✅ Verified Passed' : '❌ Verification Failed';
+      const cmdStr = finding.verification.command ? ` (\`${finding.verification.command}\`)` : '';
+      lines.push(`- **Verification:** ${statusIcon}${cmdStr}`);
     }
     
     lines.push('');
     lines.push(`> **Analysis:** ${finding.explanation}`);
+    if (finding.recommendation) {
+      lines.push(`> **Recommendation:** ${finding.recommendation}`);
+    }
     lines.push('');
 
     if (includeEvidence && finding.evidence) {
@@ -94,7 +126,26 @@ export function formatMarkdownReport(
       lines.push('```');
       lines.push('');
     }
+
+    if (finding.patch) {
+      lines.push('**Proposed Remediation Patch:**');
+      lines.push('```diff');
+      lines.push(redactSecretEvidence(finding.patch));
+      lines.push('```');
+      lines.push('');
+    } else if (finding.suggestedFix) {
+      lines.push('**Suggested Fix:**');
+      lines.push('```');
+      lines.push(redactSecretEvidence(finding.suggestedFix));
+      lines.push('```');
+      lines.push('');
+    }
   });
+
+  if (record.timeline && record.timeline.length > 0) {
+    lines.push(formatEvidenceTimelineMarkdown(record.timeline as TimelineEvent[]));
+    lines.push('');
+  }
 
   lines.push('---');
   lines.push('*Report generated autonomously by RepoGuard Software Reliability & Security Platform.*');
