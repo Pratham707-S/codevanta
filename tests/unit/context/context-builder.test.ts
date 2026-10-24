@@ -159,4 +159,170 @@ export function connect() {
     expect(result.formattedPromptContext).toContain('### Bounded Source Code Slice');
     expect(result.formattedPromptContext).toContain('L2: const b = 2;');
   });
+
+  describe('Multiline Secret Redaction Hardening (Phase 3 Step 7)', () => {
+    it('fully redacts a multiline PEM private key block so secret body is completely absent from context and prompt', async () => {
+      const secretBodyChunk1 = 'MIIEowIBAAKCAQEA0YFAKEKEYCHUNK111111111111111111';
+      const secretBodyChunk2 = 'wJalrXUtnFEMIK7MDENGbPxRfiCYFAKEKEYCHUNK22222222';
+      const secretBodyChunk3 = '7xYzAbCdEfGhIjKlMnOpQrStUvWxYz0123456789FAKEKEY3';
+
+      const fileWithPem = [
+        'import crypto from "crypto";',
+        '// Service authentication setup',
+        'const privateKeyPem = `-----BEGIN RSA PRIVATE KEY-----',
+        secretBodyChunk1,
+        secretBodyChunk2,
+        secretBodyChunk3,
+        '-----END RSA PRIVATE KEY-----`;',
+        'export function signPayload(data: string) {',
+        '  return crypto.sign("sha256", Buffer.from(data), privateKeyPem);',
+        '}',
+      ].join('\n');
+
+      const relativePath = 'src/auth/signer.ts';
+      await fs.mkdir(join(tempDir, 'src/auth'), { recursive: true });
+      await fs.writeFile(join(tempDir, relativePath), fileWithPem, 'utf-8');
+
+      const finding: StorageFinding = {
+        id: 'FINDING-PEM-001',
+        category: 'SEC-001',
+        severity: 'CRITICAL',
+        title: 'Hardcoded RSA Private Key',
+        path: relativePath,
+        lineRange: { start: 3, end: 7 },
+        explanation: 'Plaintext PEM RSA private key found committed in signer.ts',
+        evidence: `const privateKeyPem = \`-----BEGIN RSA PRIVATE KEY-----\n${secretBodyChunk1}\n...`,
+      };
+
+      const result = await buildSanitizedContext(finding, tempDir, { contextLines: 5 });
+
+      expect(result.hasRedactedSecrets).toBe(true);
+
+      // Verify the secret body is COMPLETELY ABSENT from all context outputs
+      expect(result.codeSlice.rawSnippet).not.toContain(secretBodyChunk1);
+      expect(result.codeSlice.rawSnippet).not.toContain(secretBodyChunk2);
+      expect(result.codeSlice.rawSnippet).not.toContain(secretBodyChunk3);
+      expect(result.formattedPromptContext).not.toContain(secretBodyChunk1);
+      expect(result.formattedPromptContext).not.toContain(secretBodyChunk2);
+      expect(result.formattedPromptContext).not.toContain(secretBodyChunk3);
+      expect(result.finding.evidence).not.toContain(secretBodyChunk1);
+
+      // Verify placeholder marker is present
+      expect(result.codeSlice.rawSnippet).toContain(REDACTION_MARKERS.PRIVATE_KEY);
+      expect(result.formattedPromptContext).toContain(REDACTION_MARKERS.PRIVATE_KEY);
+
+      // Verify non-secret code context is preserved
+      expect(result.codeSlice.rawSnippet).toContain('import crypto from "crypto";');
+      expect(result.codeSlice.rawSnippet).toContain('export function signPayload(data: string)');
+      expect(result.formattedPromptContext).toContain('export function signPayload(data: string)');
+
+      // Verify line count and line coordinates are preserved
+      expect(result.codeSlice.lines.length).toBe(10);
+      expect(result.codeSlice.lines[0]?.lineNumber).toBe(1);
+      expect(result.codeSlice.lines[9]?.lineNumber).toBe(10);
+    });
+
+    it('safely handles multiple secret blocks (AWS key, multiline EC key, GitHub PAT) in one file', async () => {
+      const ecSecret1 = 'MHcCAQEEIPFAKEECPRIVATEKEYDATA11111111111111111111';
+      const ecSecret2 = 'AoGCCqGSM49AwEHoUQDQgAEFAKEPUBLICKEYDATA2222222222';
+      const fakeAwsKey = 'AKIAIOSFODNN7FAKEKEY';
+      const fakeGithubPat = 'github_pat_11FAKEPAT_TOKEN_SECRET_DATA_XYZ_9876543210';
+
+      const multiSecretFile = [
+        '// Cloud integration config',
+        `const awsKey = "${fakeAwsKey}";`,
+        'function getClient() {',
+        '  return new S3Client({ key: awsKey });',
+        '}',
+        'const ecKey = `-----BEGIN EC PRIVATE KEY-----',
+        ecSecret1,
+        ecSecret2,
+        '-----END EC PRIVATE KEY-----`;',
+        'function getDeployToken() {',
+        `  const pat = "${fakeGithubPat}";`,
+        '  return pat;',
+        '}',
+      ].join('\n');
+
+      const relativePath = 'src/config/multi.ts';
+      await fs.mkdir(join(tempDir, 'src/config'), { recursive: true });
+      await fs.writeFile(join(tempDir, relativePath), multiSecretFile, 'utf-8');
+
+      const finding: StorageFinding = {
+        id: 'FINDING-MULTI-001',
+        category: 'SEC-001',
+        severity: 'CRITICAL',
+        title: 'Multiple secrets in configuration',
+        path: relativePath,
+        lineRange: { start: 2, end: 12 },
+        explanation: 'Multiple credentials committed to source code',
+      };
+
+      const result = await buildSanitizedContext(finding, tempDir);
+
+      expect(result.hasRedactedSecrets).toBe(true);
+
+      // Verify none of the secret bodies exist in prompt or snippet
+      expect(result.codeSlice.rawSnippet).not.toContain(fakeAwsKey);
+      expect(result.codeSlice.rawSnippet).not.toContain(ecSecret1);
+      expect(result.codeSlice.rawSnippet).not.toContain(ecSecret2);
+      expect(result.codeSlice.rawSnippet).not.toContain(fakeGithubPat);
+
+      expect(result.formattedPromptContext).not.toContain(fakeAwsKey);
+      expect(result.formattedPromptContext).not.toContain(ecSecret1);
+      expect(result.formattedPromptContext).not.toContain(ecSecret2);
+      expect(result.formattedPromptContext).not.toContain(fakeGithubPat);
+
+      // Verify all redaction markers appear
+      expect(result.formattedPromptContext).toContain('AKIA****************');
+      expect(result.formattedPromptContext).toContain(REDACTION_MARKERS.PRIVATE_KEY);
+      expect(result.formattedPromptContext).toContain('github_pat_********************');
+
+      // Verify non-secret code remains intact
+      expect(result.formattedPromptContext).toContain('function getClient()');
+      expect(result.formattedPromptContext).toContain('function getDeployToken()');
+    });
+
+    it('redacts multiline private key even when bounded slice window cuts into the middle of the key', async () => {
+      const middleSecret = 'SECRET_MIDDLE_CHUNK_999999999999999999999999999';
+
+      // 40 line file: lines 5-15 is PEM key, finding is line 10 with contextLines: 2 (window lines 8-12)
+      const fileLines: string[] = [];
+      for (let i = 1; i <= 4; i++) fileLines.push(`// Normal line ${i}`);
+      fileLines.push('const pem = `-----BEGIN PRIVATE KEY-----');
+      for (let i = 6; i <= 14; i++) {
+        fileLines.push(i === 10 ? middleSecret : `BASE64_LINE_${i}_SECRET_DATA_PADDING_AAAAAA`);
+      }
+      fileLines.push('-----END PRIVATE KEY-----`;');
+      for (let i = 16; i <= 40; i++) fileLines.push(`// Normal line ${i}`);
+
+      const relativePath = 'src/nested/key.ts';
+      await fs.mkdir(join(tempDir, 'src/nested'), { recursive: true });
+      await fs.writeFile(join(tempDir, relativePath), fileLines.join('\n'), 'utf-8');
+
+      const finding: StorageFinding = {
+        id: 'FINDING-MIDDLE-001',
+        category: 'SEC-001',
+        severity: 'CRITICAL',
+        title: 'Exposed secret inside private key',
+        path: relativePath,
+        lineRange: { start: 10, end: 10 },
+      };
+
+      const result = await buildSanitizedContext(finding, tempDir, { contextLines: 2 });
+
+      // Slice covers lines 8 to 12 (all inside the key body!)
+      expect(result.codeSlice.startLine).toBe(8);
+      expect(result.codeSlice.endLine).toBe(12);
+
+      // Ensure secret body is absent even though slice doesn't contain BEGIN or END tags
+      expect(result.codeSlice.rawSnippet).not.toContain(middleSecret);
+      expect(result.codeSlice.rawSnippet).not.toContain('BASE64_LINE_8_SECRET_DATA');
+      expect(result.formattedPromptContext).not.toContain(middleSecret);
+
+      for (const line of result.codeSlice.lines) {
+        expect(line.content).toBe(REDACTION_MARKERS.PRIVATE_KEY);
+      }
+    });
+  });
 });

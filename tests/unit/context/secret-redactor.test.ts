@@ -81,6 +81,49 @@ b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
       expect(result).not.toContain('b3BlbnNzaC1rZXktdjE');
       expect(result).toContain(REDACTION_MARKERS.PRIVATE_KEY);
     });
+
+    it('redacts PGP private key blocks (PRIVATE KEY BLOCK syntax)', () => {
+      const pgp = `
+-----BEGIN PGP PRIVATE KEY BLOCK-----
+Version: BCPG C# v1.6.1.0
+lQOsBFZ4F4oBCADQ
+-----END PGP PRIVATE KEY BLOCK-----
+`;
+      const result = redactSecrets(pgp);
+      expect(result).not.toContain('lQOsBFZ4F4oBCADQ');
+      expect(result).toContain(REDACTION_MARKERS.PRIVATE_KEY);
+    });
+
+    it('preserves exact newline count when redacting multiline private keys', () => {
+      const multiline = [
+        'line 1',
+        '-----BEGIN RSA PRIVATE KEY-----',
+        'secret line 3',
+        'secret line 4',
+        '-----END RSA PRIVATE KEY-----',
+        'line 6',
+      ].join('\n');
+
+      const result = redactSecrets(multiline);
+      expect(result.split('\n').length).toBe(6);
+      expect(result).not.toContain('secret line 3');
+      expect(result).not.toContain('secret line 4');
+      expect(result).toContain('line 1');
+      expect(result).toContain('line 6');
+    });
+
+    it('redacts unclosed or truncated private key streams safely', () => {
+      const unclosed = [
+        'const key = `-----BEGIN PRIVATE KEY-----',
+        'UNCLOSED_SECRET_DATA_AAAAAA',
+        'UNCLOSED_SECRET_DATA_BBBBBB',
+      ].join('\n');
+
+      const result = redactSecrets(unclosed);
+      expect(result).not.toContain('UNCLOSED_SECRET_DATA_AAAAAA');
+      expect(result).not.toContain('UNCLOSED_SECRET_DATA_BBBBBB');
+      expect(result).toContain(REDACTION_MARKERS.PRIVATE_KEY);
+    });
   });
 
   describe('Bearer and Slack Tokens', () => {

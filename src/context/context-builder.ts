@@ -85,7 +85,13 @@ export async function buildSanitizedContext(
     throw new Error(`Failed to read source file "${finding.path}" for context extraction: ${message}`);
   }
 
-  const allLines = fileContent.split(/\r?\n/);
+  // 2b. Sanitize complete source file content before line extraction
+  // Guarantees multiline secrets (like PEM private key blocks) are fully scrubbed
+  // even if they span multiple lines or extend across slice boundaries.
+  const sanitizedFileContent = redactSecrets(fileContent);
+  let hasRedactedSecrets = sanitizedFileContent !== fileContent;
+
+  const allLines = sanitizedFileContent.split(/\r?\n/);
   const totalFileLines = allLines.length;
 
   // 3. Determine target line boundaries
@@ -107,15 +113,14 @@ export async function buildSanitizedContext(
     }
   }
 
-  // 5. Extract and redact lines
-  let hasRedactedSecrets = false;
+  // 5. Extract lines and apply defense-in-depth line sanitization
   const sliceLines: CodeSliceLine[] = [];
   const rawSnippetLines: string[] = [];
 
   for (let lineNum = sliceStart; lineNum <= sliceEnd; lineNum++) {
-    const originalLine = allLines[lineNum - 1] ?? '';
-    const redactedLine = redactSecrets(originalLine);
-    if (redactedLine !== originalLine) {
+    const rawLine = allLines[lineNum - 1] ?? '';
+    const redactedLine = redactSecrets(rawLine);
+    if (redactedLine !== rawLine) {
       hasRedactedSecrets = true;
     }
 
@@ -164,8 +169,8 @@ export async function buildSanitizedContext(
     totalFileLines,
   };
 
-  // 7. Format clean prompt context string
-  const formattedPromptContext = [
+  // 7. Format clean prompt context string with final defense-in-depth sanitization
+  const rawPromptContext = [
     `### Security Finding Details`,
     `- Finding ID: ${sanitizedFinding.id}`,
     `- Rule Category: ${sanitizedFinding.category}`,
@@ -183,6 +188,8 @@ export async function buildSanitizedContext(
   ]
     .filter((line) => line !== '')
     .join('\n');
+
+  const formattedPromptContext = redactSecrets(rawPromptContext);
 
   return {
     finding: sanitizedFinding,

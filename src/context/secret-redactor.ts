@@ -39,10 +39,25 @@ export function redactSecrets(content: unknown): string {
   }
   let str = String(content);
 
-  // 1. PEM / OpenSSH / RSA / PGP Private Keys (multiline block)
+  // 1. PEM / OpenSSH / RSA / PGP / EC / Encrypted Private Keys (multiline block)
   str = str.replace(
-    /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z ]+ )?PRIVATE KEY-----/g,
-    REDACTION_MARKERS.PRIVATE_KEY
+    /-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY(?: BLOCK)?-----[\s\S]*?-----END (?:[A-Z0-9_-]+ )?PRIVATE KEY(?: BLOCK)?-----/gi,
+    (match) => {
+      const lines = match.split(/\r?\n/);
+      if (lines.length <= 1) {
+        return REDACTION_MARKERS.PRIVATE_KEY;
+      }
+      return lines.map(() => REDACTION_MARKERS.PRIVATE_KEY).join('\n');
+    }
+  );
+
+  // 1b. Truncated / unclosed Private Key blocks (safeguard against unclosed PEM streams)
+  str = str.replace(
+    /-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY(?: BLOCK)?-----[\s\S]*$/gi,
+    (match) => {
+      const lines = match.split(/\r?\n/);
+      return lines.map(() => REDACTION_MARKERS.PRIVATE_KEY).join('\n');
+    }
   );
 
   // 2. AWS Access Key IDs (AKIA prefix, 20 chars total)
@@ -137,7 +152,7 @@ export function sanitizeWithAudit(content: unknown): RedactionResult {
  */
 export function containsPotentialSecrets(content: string): boolean {
   return (
-    /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/.test(content) ||
+    /-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY(?: BLOCK)?-----/i.test(content) ||
     /\bAKIA[0-9A-Z]{16}\b/.test(content) ||
     /\bgh[posr]_[a-zA-Z0-9]{36}\b/.test(content) ||
     /\bgithub_pat_[a-zA-Z0-9_]{22,82}\b/.test(content) ||
