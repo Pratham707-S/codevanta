@@ -31,13 +31,19 @@ export function formatJsonReport(
   const indent = options.indent ?? (pretty ? 2 : 0);
   const includeEvidence = options.includeEvidence !== false;
 
-  // Clone to avoid mutating original record and ensure secret evidence is redacted
+  // Clone to avoid mutating original record and ensure secret evidence and patch secrets are redacted
   const findings = (record.findings || []).map((f) => {
     const copy = { ...f };
     if (!includeEvidence) {
       delete copy.evidence;
     } else if (copy.evidence) {
       copy.evidence = redactSecretEvidence(copy.evidence);
+    }
+    if (copy.patch) {
+      copy.patch = redactSecretEvidence(copy.patch);
+    }
+    if (copy.suggestedFix) {
+      copy.suggestedFix = redactSecretEvidence(copy.suggestedFix);
     }
     return copy;
   });
