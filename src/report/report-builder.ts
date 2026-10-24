@@ -98,9 +98,12 @@ export class ReportBuilder {
    * Helper to get a record enriched with accumulated timeline events.
    */
   private getEnrichedRecord(): ScanRunRecord & { timeline?: TimelineEvent[] } {
+    const events = this.timelineEvents.length > 0
+      ? this.timelineEvents
+      : (this.record.timeline as TimelineEvent[] | undefined);
     return {
       ...this.record,
-      timeline: this.timelineEvents.length > 0 ? this.timelineEvents : (this.record as ScanRunRecord & { timeline?: TimelineEvent[] }).timeline,
+      timeline: events,
     };
   }
 
@@ -108,9 +111,16 @@ export class ReportBuilder {
    * Builds the Markdown formatted report.
    */
   public buildMarkdown(): string {
-    let md = formatMarkdownReport(this.record, this.options.markdownOptions);
-    if (this.timelineEvents.length > 0) {
-      const timelineSection = formatEvidenceTimelineMarkdown(this.timelineEvents);
+    const allEvents = this.timelineEvents.length > 0
+      ? this.timelineEvents
+      : (this.record.timeline as TimelineEvent[] | undefined);
+
+    // If record already had timeline, strip it for initial formatting so we can place it deterministically
+    const cleanRecord = { ...this.record, timeline: undefined };
+    let md = formatMarkdownReport(cleanRecord, this.options.markdownOptions);
+
+    if (allEvents && allEvents.length > 0) {
+      const timelineSection = formatEvidenceTimelineMarkdown(allEvents);
       // Robustly target the final thematic break right before the footer
       const lastSeparatorIndex = md.lastIndexOf('---');
       if (lastSeparatorIndex !== -1) {
