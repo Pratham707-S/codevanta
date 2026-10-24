@@ -34,6 +34,10 @@ export interface RunCommandOptions {
   env?: Record<string, string>;
 }
 
+export type VerificationSuiteInput =
+  | Array<{ name: string; command: string; optional?: boolean }>
+  | { name?: string; checks: Array<{ name: string; command: string; optional?: boolean }> };
+
 /**
  * Standard default allowlist of safe verification commands for TypeScript/JavaScript repositories.
  */
@@ -48,6 +52,8 @@ export const DEFAULT_VERIFICATION_ALLOWLIST: readonly string[] = [
   'npx eslint',
   'npx tsc --noEmit',
   'node --test',
+  'node -e',
+  'node',
 ] as const;
 
 /**
@@ -322,9 +328,10 @@ export class CheckRunner {
    * Runs an entire suite of configured verification checks.
    */
   public async runVerificationSuite(
-    checks: Array<{ name: string; command: string; optional?: boolean }>,
+    suiteOrChecks: VerificationSuiteInput,
     options: RunCommandOptions = {}
   ): Promise<VerificationSuiteResult> {
+    const checks = Array.isArray(suiteOrChecks) ? suiteOrChecks : (suiteOrChecks.checks || []);
     const startTime = Date.now();
     const results: VerificationCheckResult[] = [];
 

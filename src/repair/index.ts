@@ -68,5 +68,6 @@ export {
   type RepairProposal,
   type RepairExecutionResult,
   type RepairOrchestratorOptions,
+  type FindingRepairInput,
 } from './repair-orchestrator.js';
 

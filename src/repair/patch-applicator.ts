@@ -32,6 +32,7 @@ export interface PatchApplicationResult {
   appliedFiles: FilePatchResult[];
   errors: string[];
   timestamp: string;
+  rollbackHandle?: () => Promise<void>;
 }
 
 export interface PatchApplicatorOptions {
@@ -327,6 +328,12 @@ export class PatchApplicator {
       appliedFiles,
       errors,
       timestamp,
+      rollbackHandle:
+        overallSuccess && !opts.dryRun
+          ? async () => {
+              await this.rollback(backups, createdDirs);
+            }
+          : undefined,
     };
   }
 

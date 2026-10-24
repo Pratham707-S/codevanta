@@ -129,6 +129,21 @@ export class MockAdapter implements IAIProvider {
         `+execFile("git", ["checkout", branchName]);`,
         ` return true;`,
       ].join('\n');
+    } else if (
+      finding.category.includes('SEC-004') ||
+      finding.category.toLowerCase().includes('input') ||
+      finding.title.toLowerCase().includes('input') ||
+      finding.title.toLowerCase().includes('unvalidated')
+    ) {
+      description = `Sanitize and validate untrusted input for finding ${finding.id} in ${filePath}`;
+      rootCause = 'Untrusted input consumed without schema validation';
+      diff = [
+        `--- a/${filePath}`,
+        `+++ b/${filePath}`,
+        `@@ -${startLine},1 +${startLine},1 @@`,
+        `-const unvalidatedInput = req.body;`,
+        `+const validatedInput = schema.parse(req.body);`,
+      ].join('\n');
     } else {
       description = `Apply automated remediation for finding ${finding.id} in ${filePath}`;
       rootCause = `Vulnerability identified at line ${startLine}`;
