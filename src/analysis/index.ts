@@ -4,8 +4,7 @@
  * Path: src/analysis/index.ts
  * Owner: Team Lead
  * Purpose: Analysis module public exports
- *
- * @todo Implementation planned in assigned milestone.
  */
 
-export {};
+export * from './confidence.js';
+export * from './rules/index.js';
