@@ -3,10 +3,215 @@
  *
  * Path: src/verification/verification-orchestrator.ts
  * Owner: Pratham
- * Purpose: Verification workflow: coordinate check execution and cleanup
- *
- * @todo Planned architecture component. Implementation scheduled for planned phase.
+ * Purpose: Verification workflow: coordinate check execution, auto-discovery, and cleanup
  */
 
-// Placeholder export to satisfy module resolution
-export {};
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
+import {
+  CheckRunner,
+  CheckRunnerOptions,
+  VerificationSuiteInput,
+} from './check-runner.js';
+import {
+  VerificationCheckResult,
+  VerificationSuiteResult,
+} from '../domain/verification.js';
+import { classifySuiteOutcome } from './result-classifier.js';
+
+export interface VerificationCheckDefinition {
+  name: string;
+  command: string;
+  optional?: boolean;
+}
+
+export interface VerificationOrchestratorOptions extends CheckRunnerOptions {
+  failFast?: boolean;
+  onCheckStart?: (check: VerificationCheckDefinition) => void;
+  onCheckComplete?: (result: VerificationCheckResult) => void;
+}
+
+export interface AutoDiscoverOptions {
+  includeLint?: boolean;
+  includeTypecheck?: boolean;
+  includeBuild?: boolean;
+  includeTest?: boolean;
+}
+
+/**
+ * Redacts recognized secrets from stdout/stderr to prevent sensitive credentials
+ * from leaking into reports or storage.
+ */
+function sanitizeVerificationOutput(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/(AKIA)[0-9A-Z]{16,28}/g, '$1****************')
+    .replace(/(gh[pousr]_)[A-Za-z0-9_]{30,}/g, '$1********************************')
+    .replace(
+      /((?:api_?key|jwt_?secret|auth_?token|client_?secret|password|passwd|secret)\s*[:=]\s*["'])[A-Za-z0-9_\-]{8,}(["'])/gi,
+      '$1[REDACTED_SECRET]$2'
+    );
+}
+
+export class VerificationOrchestrator {
+  private readonly runner: CheckRunner;
+  private readonly options: VerificationOrchestratorOptions;
+
+  constructor(options: VerificationOrchestratorOptions = {}) {
+    this.options = options;
+    this.runner = new CheckRunner(options);
+  }
+
+  /**
+   * Automatically discovers safe verification commands based on package.json in the target directory.
+   */
+  public async autoDiscoverChecks(
+    repoRoot: string,
+    discoverOptions: AutoDiscoverOptions = {}
+  ): Promise<VerificationCheckDefinition[]> {
+    const checks: VerificationCheckDefinition[] = [];
+    const pkgPath = join(repoRoot, 'package.json');
+
+    try {
+      const content = await fs.readFile(pkgPath, 'utf8');
+      const pkg = JSON.parse(content) as { scripts?: Record<string, string> };
+      const scripts = pkg.scripts || {};
+
+      const includeTypecheck = discoverOptions.includeTypecheck ?? true;
+      const includeLint = discoverOptions.includeLint ?? true;
+      const includeTest = discoverOptions.includeTest ?? true;
+      const includeBuild = discoverOptions.includeBuild ?? false;
+
+      if (includeTypecheck && scripts.typecheck) {
+        checks.push({
+          name: 'Typecheck',
+          command: 'npm run typecheck',
+        });
+      }
+
+      if (includeLint && scripts.lint) {
+        checks.push({
+          name: 'Lint',
+          command: 'npm run lint',
+        });
+      }
+
+      if (includeTest && scripts.test) {
+        checks.push({
+          name: 'Unit Tests',
+          command: 'npm test',
+        });
+      }
+
+      if (includeBuild && scripts.build) {
+        checks.push({
+          name: 'Build',
+          command: 'npm run build',
+        });
+      }
+    } catch {
+      // If package.json is missing or invalid, fall back to default test check
+    }
+
+    if (checks.length === 0) {
+      checks.push({
+        name: 'Default Test Check',
+        command: 'npm test',
+      });
+    }
+
+    return checks;
+  }
+
+  /**
+   * Executes a full verification workflow with optional fail-fast and lifecycle callbacks.
+   */
+  public async verify(
+    checksOrInput: VerificationSuiteInput | VerificationCheckDefinition[],
+    overrideOptions: Partial<VerificationOrchestratorOptions> = {}
+  ): Promise<VerificationSuiteResult> {
+    const opts: VerificationOrchestratorOptions = { ...this.options, ...overrideOptions };
+    const startTime = Date.now();
+    const timestamp = new Date().toISOString();
+
+    const normalizedChecks: VerificationCheckDefinition[] = Array.isArray(checksOrInput)
+      ? checksOrInput
+      : checksOrInput.checks;
+
+    const checkResults: VerificationCheckResult[] = [];
+
+    for (const check of normalizedChecks) {
+      if (opts.onCheckStart) {
+        opts.onCheckStart(check);
+      }
+
+      const rawResult = await this.runner.runCheck(check.name, check.command, {
+        cwd: opts.cwd,
+        timeoutMs: opts.defaultTimeoutMs,
+      });
+
+      // Redact any secrets leaked into stdout or stderr
+      const sanitizedResult: VerificationCheckResult = {
+        ...rawResult,
+        stdout: sanitizeVerificationOutput(rawResult.stdout),
+        stderr: sanitizeVerificationOutput(rawResult.stderr),
+      };
+
+      checkResults.push(sanitizedResult);
+
+      if (opts.onCheckComplete) {
+        opts.onCheckComplete(sanitizedResult);
+      }
+
+      // If failFast is active and a non-optional check failed, abort remaining checks
+      if (opts.failFast && !check.optional && sanitizedResult.outcome !== 'PASSED') {
+        break;
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+    const passedCount = checkResults.filter((c) => c.outcome === 'PASSED').length;
+    const failedCount = checkResults.filter((c) => c.outcome === 'FAILED' || c.outcome === 'ERROR').length;
+    const timedOutCount = checkResults.filter((c) => c.outcome === 'TIMED_OUT').length;
+    const skippedCount = checkResults.filter((c) => c.outcome === 'SKIPPED').length;
+
+    const overallOutcome = classifySuiteOutcome(checkResults);
+    const passed = overallOutcome === 'PASSED';
+
+    return {
+      passed,
+      totalChecks: checkResults.length,
+      passedCount,
+      failedCount,
+      timedOutCount,
+      skippedCount,
+      checks: checkResults,
+      overallOutcome,
+      durationMs,
+      timestamp,
+    };
+  }
+
+  /**
+   * Generates a clean human-readable text summary of verification results.
+   */
+  public formatSummary(suiteResult: VerificationSuiteResult): string {
+    const lines: string[] = [];
+    const icon = suiteResult.passed ? '✔' : '✖';
+    const statusText = suiteResult.passed ? 'VERIFICATION PASSED' : 'VERIFICATION FAILED';
+
+    lines.push(`=== ${icon} ${statusText} (${suiteResult.durationMs}ms) ===`);
+    lines.push(
+      `Total Checks: ${suiteResult.totalChecks} | Passed: ${suiteResult.passedCount} | Failed: ${suiteResult.failedCount} | Timed Out: ${suiteResult.timedOutCount}`
+    );
+
+    for (const check of suiteResult.checks) {
+      const checkIcon = check.outcome === 'PASSED' ? '✔' : '✖';
+      lines.push(
+        `  ${checkIcon} [${check.outcome}] ${check.checkName} (${check.durationMs}ms) - ${check.explanation}`
+      );
+    }
+
+    return lines.join('\n');
+  }
+}
