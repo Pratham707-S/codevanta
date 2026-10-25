@@ -1,3 +1,11 @@
+/**
+ * RepoGuard — AI-Assisted Code Reliability & Security Platform
+ *
+ * Path: src/repository/file-walker.ts
+ * Owner: Manni
+ * Purpose: Safely enumerate repository files without modifying them.
+ */
+
 import {
     mkdtempSync,
     mkdirSync,

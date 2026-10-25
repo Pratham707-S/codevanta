@@ -1,3 +1,11 @@
+/**
+ * RepoGuard — AI-Assisted Code Reliability & Security Platform
+ *
+ * Path: src/repository/discovery.ts
+ * Owner: Manni
+ * Purpose: Repository discovery: find repo root, detect languages and build tools
+ */
+
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

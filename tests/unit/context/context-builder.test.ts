@@ -1,3 +1,12 @@
+/**
+ * RepoGuard — AI-Assisted Code Reliability & Security Platform
+ *
+ * Path: src/context/context-builder.ts
+ * Owner: Manni
+ * Purpose: Context builder: assemble bounded code slices, ranking and token budgeting
+ *
+ * @todo Implementation planned in assigned milestone.
+ */
 
 import { describe, expect, it } from 'vitest';
 import { buildContext } from '../../../src/context/context-builder.js';

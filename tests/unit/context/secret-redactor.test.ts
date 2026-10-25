@@ -1,3 +1,11 @@
+/**
+ * RepoGuard — AI-Assisted Code Reliability & Security Platform
+ *
+ * Path: src/context/secret-redactor.ts
+ * Owner: Manni
+ * Purpose: Redact common secrets before provider dispatch.
+ */
+
 import { describe, expect, it } from 'vitest';
 import { redactSecrets } from '../../../src/context/secret-redactor.js';
 
