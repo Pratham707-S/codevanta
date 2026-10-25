@@ -382,5 +382,64 @@ describe('PatchApplicator & applyHunksToString', () => {
       const updated = await readFile(target, 'utf8');
       expect(updated).toBe('let x = 100;');
     });
+
+    it('blocks patch application when target file is not in allowedFiles list', async () => {
+      const allowed = join(tempDir, 'allowed.ts');
+      const unapproved = join(tempDir, 'unapproved.ts');
+      await writeFile(allowed, 'const allowed = 1;');
+      await writeFile(unapproved, 'const secret = "dont-touch";');
+
+      const diff = `--- a/unapproved.ts
++++ b/unapproved.ts
+@@ -1,1 +1,1 @@
+-const secret = "dont-touch";
++const secret = "tampered";`;
+
+      const result = await applyPatch(diff, {
+        repoRoot: tempDir,
+        allowedFiles: ['allowed.ts'],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.errors[0]).toMatch(/not in the approved target files list/i);
+
+      // Verify unapproved file was never touched
+      const unapprovedContent = await readFile(unapproved, 'utf8');
+      expect(unapprovedContent).toBe('const secret = "dont-touch";');
+    });
+
+    it('restores exact byte-for-byte content of multiple files upon partial application failure', async () => {
+      const fileA = join(tempDir, 'fileA.txt');
+      const fileB = join(tempDir, 'fileB.txt');
+      const originalA = 'Line 1: A\nLine 2: A\nLine 3: A\n';
+      const originalB = 'Line 1: B\nLine 2: B\nLine 3: B\n';
+
+      await writeFile(fileA, originalA, 'utf8');
+      await writeFile(fileB, originalB, 'utf8');
+
+      // fileA succeeds, fileB fails with non-matching hunk
+      const multiDiff = `--- a/fileA.txt
++++ b/fileA.txt
+@@ -1,2 +1,2 @@
+ Line 1: A
+-Line 2: A
++Line 2: A-MODIFIED
+--- a/fileB.txt
++++ b/fileB.txt
+@@ -1,2 +1,2 @@
+ Line 1: B
+-NON_MATCHING_LINE_CAUSING_FAILURE
++Line 2: B-MODIFIED`;
+
+      const result = await applyPatch(multiDiff, { repoRoot: tempDir });
+      expect(result.success).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+
+      // Byte-for-byte verification that fileA was completely restored
+      const afterA = await readFile(fileA, 'utf8');
+      const afterB = await readFile(fileB, 'utf8');
+      expect(afterA).toBe(originalA);
+      expect(afterB).toBe(originalB);
+    });
   });
 });

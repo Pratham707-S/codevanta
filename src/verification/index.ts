@@ -3,9 +3,9 @@
  *
  * Path: src/verification/index.ts
  * Owner: Pratham
- * Purpose: Verification module public exports
- *
- * @todo Implementation planned in assigned milestone.
+ * Purpose: Verification subsystem public exports
  */
 
-export {};
+export * from '../domain/verification.js';
+export * from './result-classifier.js';
+export * from './check-runner.js';

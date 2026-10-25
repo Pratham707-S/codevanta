@@ -32,6 +32,7 @@ export interface PatchApplicationResult {
   appliedFiles: FilePatchResult[];
   errors: string[];
   timestamp: string;
+  rollbackHandle?: () => Promise<void>;
 }
 
 export interface PatchApplicatorOptions {
@@ -39,6 +40,7 @@ export interface PatchApplicatorOptions {
   dryRun?: boolean;
   strict?: boolean;
   searchWindow?: number;
+  allowedFiles?: string[];
 }
 
 interface FileBackup {
@@ -260,6 +262,33 @@ export class PatchApplicator {
       };
     }
 
+    // Pre-flight check: Ensure all files in patch are explicitly approved
+    if (opts.allowedFiles && opts.allowedFiles.length > 0) {
+      const allowedNormalized = new Set(
+        opts.allowedFiles.map((f) => resolve(repoRoot, f))
+      );
+
+      for (const file of parsedFiles) {
+        const targetRelPath = file.isDeletedFile
+          ? file.oldPath
+          : file.newPath && file.newPath !== '/dev/null'
+            ? file.newPath
+            : file.oldPath;
+        const targetAbsPath = resolve(repoRoot, targetRelPath);
+
+        if (!allowedNormalized.has(targetAbsPath)) {
+          return {
+            success: false,
+            appliedFiles: [],
+            errors: [
+              `Target file "${targetRelPath}" is not in the approved target files list. Patch application blocked.`,
+            ],
+            timestamp,
+          };
+        }
+      }
+    }
+
     const appliedFiles: FilePatchResult[] = [];
     const backups: FileBackup[] = [];
     const createdDirs: string[] = [];
@@ -299,6 +328,12 @@ export class PatchApplicator {
       appliedFiles,
       errors,
       timestamp,
+      rollbackHandle:
+        overallSuccess && !opts.dryRun
+          ? async () => {
+              await this.rollback(backups, createdDirs);
+            }
+          : undefined,
     };
   }
 
