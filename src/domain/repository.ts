@@ -8,4 +8,23 @@
  * @todo Implementation planned in assigned milestone.
  */
 
-export {};
+/**
+ * Package manifest se extract ki gayi information.
+ */
+export interface RepositoryMetadata {
+  name?: string;
+  version?: string;
+  packageManager?: string;
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+  lockfile: string | null;
+}
+
+/**
+ * Repository ke andar discover hui file ki basic information.
+ */
+export interface FileInfo {
+  path: string;
+  size: number;
+  language?: string;
+}
