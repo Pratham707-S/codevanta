@@ -307,6 +307,7 @@ export function connect() {
         title: 'Exposed secret inside private key',
         path: relativePath,
         lineRange: { start: 10, end: 10 },
+        explanation: 'Exposed secret inside multiline private key body',
       };
 
       const result = await buildSanitizedContext(finding, tempDir, { contextLines: 2 });
