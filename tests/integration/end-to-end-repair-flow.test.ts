@@ -422,7 +422,6 @@ describe('Integration: End-to-End Repair Orchestration & Intelligence', () => {
   describe('CLI repoguard review command end-to-end integration', () => {
     let logOutput: string[] = [];
     let logSpy: ReturnType<typeof vi.spyOn>;
-    const runStore = new RunStore();
 
     beforeEach(() => {
       logOutput = [];
