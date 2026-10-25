@@ -9,6 +9,7 @@
 import { ScanRunRecord, StorageFinding, RunSummaryItem } from '../storage/run-store.js';
 import { ScanComparison, compareScans } from './scan-comparison.js';
 import { redactSecretEvidence, sanitizeFindingsForReport } from './redaction.js';
+import { formatEvidenceTimelineHtml, TimelineEvent } from './evidence-timeline.js';
 
 export interface HtmlReportOptions {
   title?: string;
@@ -133,6 +134,24 @@ export function formatHtmlReport(
           ? `<span class="confidence-tag">Confidence: ${confidenceVal.toFixed(0)}%</span>` 
           : '';
 
+        const cweBadge = f.cwe ? `<span class="badge badge-cwe">${escapeHtml(f.cwe)}</span>` : '';
+        const verificationBadge = f.verification
+          ? `<span class="badge ${f.verification.verified ? 'badge-clean' : 'badge-critical'}">${f.verification.verified ? '✔ VERIFIED' : '✖ UNVERIFIED'}</span>`
+          : '';
+
+        const ruleInfo = f.ruleId ? `<span><strong>Rule:</strong> <code>${escapeHtml(f.ruleId)}</code></span>` : '';
+        const sourceInfo = (f.agentName || f.source) ? `<span><strong>Source:</strong> ${escapeHtml(f.agentName || f.source)}</span>` : '';
+
+        let blameInfo = '';
+        if (f.blame) {
+          const sha = f.blame.commitSha ? `<code>${escapeHtml(f.blame.commitSha.slice(0, 8))}</code>` : '';
+          const author = f.blame.author ? ` by ${escapeHtml(f.blame.author)}` : '';
+          const date = f.blame.date ? ` (${escapeHtml(f.blame.date)})` : '';
+          blameInfo = `<span><strong>Blame:</strong> ${sha}${author}${date}</span>`;
+        } else if (f.commitSha) {
+          blameInfo = `<span><strong>Commit:</strong> <code>${escapeHtml(f.commitSha.slice(0, 8))}</code></span>`;
+        }
+
         const evidenceBlock = (includeEvidence && f.evidence)
           ? `<pre class="evidence"><code>${escapeHtml(redactSecretEvidence(f.evidence))}</code></pre>`
           : '';
@@ -148,11 +167,36 @@ export function formatHtmlReport(
           </div>
         `;
 
+        let patchBlock = '';
+        if (f.patch) {
+          patchBlock = `
+            <div class="patch-box">
+              <div class="patch-header">
+                <span class="patch-icon">🛠️</span>
+                <strong>Proposed Remediation Diff</strong>
+              </div>
+              <pre class="evidence patch-code"><code>${escapeHtml(redactSecretEvidence(f.patch))}</code></pre>
+            </div>
+          `;
+        } else if (f.suggestedFix) {
+          patchBlock = `
+            <div class="patch-box">
+              <div class="patch-header">
+                <span class="patch-icon">💡</span>
+                <strong>Suggested Fix</strong>
+              </div>
+              <pre class="evidence patch-code"><code>${escapeHtml(redactSecretEvidence(f.suggestedFix))}</code></pre>
+            </div>
+          `;
+        }
+
         return `
           <div class="finding-card ${borderClass}">
             <div class="finding-header">
               <span class="finding-number">#${i + 1}</span>
               <span class="badge ${badgeClass}">${escapeHtml(f.severity)}</span>
+              ${cweBadge}
+              ${verificationBadge}
               <span class="finding-title">${escapeHtml(f.title)}</span>
               ${confidenceInfo}
             </div>
@@ -160,12 +204,16 @@ export function formatHtmlReport(
               <span><strong>Category:</strong> ${escapeHtml(f.category)}</span>
               <span><strong>Location:</strong> <code>${escapeHtml(f.path)}</code>${lineInfo}</span>
               <span><strong>ID:</strong> <code>${escapeHtml(f.id)}</code></span>
+              ${ruleInfo}
+              ${sourceInfo}
+              ${blameInfo}
             </div>
             <div class="finding-explanation">
               <p>${escapeHtml(f.explanation)}</p>
             </div>
             ${evidenceBlock}
             ${recommendationHtml}
+            ${patchBlock}
           </div>
         `;
       }).join('\n');
@@ -181,15 +229,16 @@ export function formatHtmlReport(
     const newCount = comparison.newFindings.length;
     const resolvedCount = comparison.resolvedFindings.length;
     const unchangedCount = comparison.unchangedFindings.length;
+    const totalDelta = comparison.delta.total;
 
-    let deltaLabel = 'No change';
+    let deltaLabel = 'No change in total findings';
     let deltaClass = 'badge-info';
-    if (comparison.delta.total > 0) {
-      deltaLabel = `+${comparison.delta.total} findings`;
+    if (totalDelta > 0) {
+      deltaLabel = `+${totalDelta} findings`;
       deltaClass = 'badge-critical';
-    } else if (comparison.delta.total < 0) {
-      deltaLabel = `${comparison.delta.total} findings`;
-      deltaClass = 'badge-low';
+    } else if (totalDelta < 0) {
+      deltaLabel = `${totalDelta} findings`;
+      deltaClass = 'badge-clean';
     }
 
     const newItems = comparison.newFindings.map((f) => {
@@ -198,10 +247,9 @@ export function formatHtmlReport(
         <div class="timeline-item timeline-new">
           <span class="timeline-badge badge-critical">NEW</span>
           <span class="timeline-title"><strong>${escapeHtml(f.title)}</strong> in <code>${escapeHtml(f.path)}${lineStr}</code></span>
-          <span class="badge ${severityBadgeClass[f.severity] || 'badge-info'}">${escapeHtml(f.severity)}</span>
         </div>
       `;
-    }).join('');
+    }).join('\n');
 
     const resolvedItems = comparison.resolvedFindings.map((f) => {
       const lineStr = f.lineRange ? `:${f.lineRange.start}` : '';
@@ -209,10 +257,9 @@ export function formatHtmlReport(
         <div class="timeline-item timeline-resolved">
           <span class="timeline-badge badge-resolved">RESOLVED</span>
           <span class="timeline-title"><strong>${escapeHtml(f.title)}</strong> in <code>${escapeHtml(f.path)}${lineStr}</code></span>
-          <span class="badge ${severityBadgeClass[f.severity] || 'badge-info'}">${escapeHtml(f.severity)}</span>
         </div>
       `;
-    }).join('');
+    }).join('\n');
 
     const unchangedSummary = unchangedCount > 0
       ? `<div class="timeline-item timeline-unchanged">
@@ -300,6 +347,11 @@ export function formatHtmlReport(
     `;
   }
 
+  // 4. Audit & Root-Cause Discovery Timeline
+  const auditTimelineHtml = (record.timeline && record.timeline.length > 0)
+    ? formatEvidenceTimelineHtml(record.timeline as TimelineEvent[])
+    : '';
+
   // Safe serialized JSON for the download button with redacted evidence
   const safeRecordForExport: ScanRunRecord = {
     ...record,
@@ -318,35 +370,35 @@ export function formatHtmlReport(
       --canvas: #f6f3eb;
       --canvas-subtle: #efebe0;
       --card-bg: #ffffff;
+      --border: #e2ddd3;
+      --border-subtle: #eae5db;
       --text: #201e1b;
       --text-muted: #6b645b;
-      --text-subtle: #968e83;
-      --border: #e4dfd3;
-      --border-subtle: #ebe7de;
-      --critical: #c5221f;
-      --critical-bg: #fdf2f2;
-      --critical-border: #f8b4b4;
-      --high: #b45309;
-      --high-bg: #fef8ee;
-      --high-border: #fcd34d;
-      --medium: #d97706;
+      --text-subtle: #8c8479;
+      --primary: #1e3a5f;
+      --primary-hover: #152943;
+      --critical: #b91c1c;
+      --critical-bg: #fef2f2;
+      --critical-border: #fecaca;
+      --high: #c2410c;
+      --high-bg: #fff7ed;
+      --high-border: #ffedd5;
+      --medium: #b45309;
       --medium-bg: #fffbeb;
-      --medium-border: #fde68a;
-      --low: #1d4ed8;
-      --low-bg: #eff6ff;
-      --low-border: #bfdbfe;
-      --info: #44403c;
-      --info-bg: #f5f5f4;
-      --info-border: #d6d3d1;
+      --medium-border: #fef3c7;
+      --low: #4d7c0f;
+      --low-bg: #f7fee7;
+      --low-border: #ecfccb;
+      --info: #0369a1;
+      --info-bg: #f0f9ff;
+      --info-border: #e0f2fe;
       --success: #15803d;
       --success-bg: #f0fdf4;
-      --success-border: #bbf7d0;
-      --primary: #201e1b;
-      --primary-hover: #000000;
+      --success-border: #dcfce7;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background-color: var(--canvas);
       background-image: radial-gradient(circle at 10% 20%, rgba(255,255,255,0.7) 0%, transparent 40%),
                         radial-gradient(circle at 90% 80%, rgba(235,228,214,0.5) 0%, transparent 50%);
@@ -398,23 +450,22 @@ export function formatHtmlReport(
     .meta-bar span strong { color: var(--text); font-weight: 600; }
     .header-actions { display: flex; gap: 0.6rem; align-items: center; }
     .btn {
-      padding: 0.55rem 1.1rem;
-      border-radius: 8px;
-      font-weight: 600;
       font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.55rem 1.1rem;
+      border-radius: 6px;
       cursor: pointer;
+      text-decoration: none;
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
-      text-decoration: none;
       transition: all 0.15s ease;
-      font-family: inherit;
+      border: none;
     }
     .btn-primary {
       background: var(--primary);
-      color: #fafaf9;
-      border: 1px solid var(--primary);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
     }
     .btn-primary:hover {
       background: var(--primary-hover);
@@ -492,6 +543,7 @@ export function formatHtmlReport(
     .badge-info { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
     .badge-resolved { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
     .badge-clean { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .badge-cwe { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
     .confidence-tag {
       font-size: 0.75rem;
       color: var(--text-muted);
@@ -550,6 +602,25 @@ export function formatHtmlReport(
       letter-spacing: 0.03em;
     }
     .remediation-box p { line-height: 1.5; margin: 0; }
+    .patch-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin-top: 0.85rem;
+    }
+    .patch-header {
+      font-weight: 700;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-bottom: 0.35rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .patch-code { background: #0f172a; color: #38bdf8; margin-bottom: 0; }
     .comparison-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -615,6 +686,22 @@ export function formatHtmlReport(
       border-radius: 3px;
       font-size: 0.8rem;
     }
+    .timeline-events-container { display: flex; flex-direction: column; gap: 0.75rem; }
+    .timeline-event-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.9rem 1.15rem;
+      box-shadow: 0 1px 2px rgba(32, 30, 27, 0.02);
+    }
+    .event-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+    .event-time { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.78rem; color: var(--text-muted); }
+    .event-step { color: var(--text); font-size: 0.9rem; flex: 1; }
+    .event-dur { font-size: 0.75rem; color: var(--text-muted); background: var(--canvas-subtle); padding: 0.1rem 0.4rem; border-radius: 4px; }
+    .event-detail { font-size: 0.88rem; color: #38342f; margin-bottom: 0.35rem; line-height: 1.4; }
+    .timeline-lineage { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; }
+    .timeline-lineage code { font-family: ui-monospace, SFMono-Regular, monospace; background: var(--canvas-subtle); padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .lineage-label { font-weight: 600; text-transform: uppercase; font-size: 0.7rem; }
     .table-container {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -729,6 +816,8 @@ export function formatHtmlReport(
     ${comparisonHtml}
 
     ${historyHtml}
+
+    ${auditTimelineHtml}
 
     <section class="dashboard-section">
       <h2 class="section-title">Audit Findings & Remediation</h2>

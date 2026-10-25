@@ -78,6 +78,9 @@ export const AiConfigSchema = z
     provider: z.enum(['gemini', 'mock']).default('gemini'),
     model: z.string().min(1).default('gemini-2.5-pro'),
     apiKey: z.string().optional(),
+    temperature: z.number().min(0).max(2).optional(),
+    maxOutputTokens: z.number().int().positive().optional(),
+    multiPass: z.boolean().optional(),
   })
   .strict();
 

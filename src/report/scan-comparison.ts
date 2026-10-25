@@ -28,9 +28,12 @@ export interface ScanComparison {
 
 /**
  * Derives a reliable identifier for tracking findings across runs.
- * Uses finding.id if available; falls back to composite path:lineRange:category:title.
+ * Uses finding.fingerprint if available; otherwise finding.id; falls back to composite path:lineRange:category:title.
  */
 export function computeFindingIdentifier(finding: StorageFinding): string {
+  if (finding.fingerprint && finding.fingerprint.trim().length > 0) {
+    return finding.fingerprint.trim();
+  }
   if (finding.id && finding.id.trim().length > 0) {
     return finding.id.trim();
   }

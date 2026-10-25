@@ -55,6 +55,8 @@ export function sanitizeFindingForReport(finding: StorageFinding): StorageFindin
   return {
     ...finding,
     evidence: finding.evidence !== undefined ? redactSecretEvidence(finding.evidence) : undefined,
+    patch: finding.patch !== undefined ? redactSecretEvidence(finding.patch) : undefined,
+    suggestedFix: finding.suggestedFix !== undefined ? redactSecretEvidence(finding.suggestedFix) : undefined,
   };
 }
 
