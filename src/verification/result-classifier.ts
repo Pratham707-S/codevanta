@@ -35,29 +35,35 @@ export function classifyExecutionOutcome(result: CommandExecutionResult): CheckO
 
 /**
  * Computes the aggregate outcome for an entire verification check suite.
- * Invariant: A suite cannot be marked PASSED if any constituent check failed, timed out, or errored.
+ * Invariant: Required checks must pass cleanly. Optional checks cannot fail the suite if required checks pass.
  */
 export function classifySuiteOutcome(checks: VerificationCheckResult[]): CheckOutcome {
   if (checks.length === 0) {
     return 'SKIPPED';
   }
 
-  const hasTimedOut = checks.some((c) => c.outcome === 'TIMED_OUT');
+  // Filter required (non-optional) checks
+  const requiredChecks = checks.filter((c) => !c.optional);
+
+  // If there are required checks, evaluate based on required checks
+  const evaluationTarget = requiredChecks.length > 0 ? requiredChecks : checks;
+
+  const hasTimedOut = evaluationTarget.some((c) => c.outcome === 'TIMED_OUT');
   if (hasTimedOut) {
     return 'TIMED_OUT';
   }
 
-  const hasError = checks.some((c) => c.outcome === 'ERROR');
+  const hasError = evaluationTarget.some((c) => c.outcome === 'ERROR');
   if (hasError) {
     return 'ERROR';
   }
 
-  const hasFailed = checks.some((c) => c.outcome === 'FAILED');
+  const hasFailed = evaluationTarget.some((c) => c.outcome === 'FAILED');
   if (hasFailed) {
     return 'FAILED';
   }
 
-  const nonSkipped = checks.filter((c) => c.outcome !== 'SKIPPED');
+  const nonSkipped = evaluationTarget.filter((c) => c.outcome !== 'SKIPPED');
   if (nonSkipped.length === 0) {
     return 'SKIPPED';
   }

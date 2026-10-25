@@ -140,7 +140,8 @@ export class VerificationOrchestrator {
 
     const checkResults: VerificationCheckResult[] = [];
 
-    for (const check of normalizedChecks) {
+    for (let i = 0; i < normalizedChecks.length; i++) {
+      const check = normalizedChecks[i]!;
       if (opts.onCheckStart) {
         opts.onCheckStart(check);
       }
@@ -153,6 +154,7 @@ export class VerificationOrchestrator {
       // Redact any secrets leaked into stdout or stderr
       const sanitizedResult: VerificationCheckResult = {
         ...rawResult,
+        optional: check.optional,
         stdout: sanitizeVerificationOutput(rawResult.stdout),
         stderr: sanitizeVerificationOutput(rawResult.stderr),
       };
@@ -163,8 +165,26 @@ export class VerificationOrchestrator {
         opts.onCheckComplete(sanitizedResult);
       }
 
-      // If failFast is active and a non-optional check failed, abort remaining checks
+      // If failFast is active and a non-optional check failed, mark remaining checks as SKIPPED and abort
       if (opts.failFast && !check.optional && sanitizedResult.outcome !== 'PASSED') {
+        for (let j = i + 1; j < normalizedChecks.length; j++) {
+          const remainingCheck = normalizedChecks[j]!;
+          const skippedResult: VerificationCheckResult = {
+            checkName: remainingCheck.name,
+            command: remainingCheck.command,
+            optional: remainingCheck.optional,
+            outcome: 'SKIPPED',
+            exitCode: null,
+            durationMs: 0,
+            stdout: '',
+            stderr: '',
+            explanation: `Check "${remainingCheck.name}" was skipped due to earlier failure of check "${check.name}" with outcome ${sanitizedResult.outcome} (fail-fast active).`,
+          };
+          checkResults.push(skippedResult);
+          if (opts.onCheckComplete) {
+            opts.onCheckComplete(skippedResult);
+          }
+        }
         break;
       }
     }

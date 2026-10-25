@@ -28,6 +28,7 @@ export interface VerificationCheckResult {
   stdout: string;
   stderr: string;
   explanation: string;
+  optional?: boolean;
 }
 
 export interface VerificationSuiteResult {

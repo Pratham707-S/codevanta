@@ -351,6 +351,9 @@ export class CheckRunner {
       }
 
       const checkResult = await this.runCheck(check.name, check.command, options);
+      if (check.optional !== undefined) {
+        checkResult.optional = check.optional;
+      }
       results.push(checkResult);
     }
 

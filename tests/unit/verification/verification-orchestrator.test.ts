@@ -95,7 +95,7 @@ describe('Verification: VerificationOrchestrator Workflow', () => {
       expect(completed).toEqual(['Check 1', 'Check 2']);
     });
 
-    it('enforces failFast: true and halts subsequent checks after first failure', async () => {
+    it('enforces failFast: true, halts subsequent execution, and records remaining checks as SKIPPED', async () => {
       const orchestrator = new VerificationOrchestrator({
         cwd: tempDir,
         failFast: true,
@@ -105,20 +105,111 @@ describe('Verification: VerificationOrchestrator Workflow', () => {
         ],
       });
 
-      const executed: string[] = [];
+      const started: string[] = [];
+      const completed: string[] = [];
       const suite: VerificationCheckDefinition[] = [
         { name: 'Failing Check', command: 'node -e "process.exit(1)"' },
         { name: 'Subsequent Check', command: 'node -e "console.log(\'should not run\')"' },
       ];
 
       const result = await orchestrator.verify(suite, {
-        onCheckStart: (c) => executed.push(c.name),
+        onCheckStart: (c) => started.push(c.name),
+        onCheckComplete: (r) => completed.push(r.checkName),
       });
 
       expect(result.passed).toBe(false);
       expect(result.overallOutcome).toBe('FAILED');
-      expect(result.totalChecks).toBe(1); // Second check was aborted
-      expect(executed).toEqual(['Failing Check']);
+      expect(result.totalChecks).toBe(2);
+      expect(result.failedCount).toBe(1);
+      expect(result.skippedCount).toBe(1);
+      expect(result.checks[0]?.outcome).toBe('FAILED');
+      expect(result.checks[1]?.outcome).toBe('SKIPPED');
+      expect(result.checks[1]?.explanation).toContain('skipped due to earlier failure');
+      expect(started).toEqual(['Failing Check']);
+      expect(completed).toEqual(['Failing Check', 'Subsequent Check']);
+    });
+
+    it('correctly records 1 failure and 3 skipped checks in a four-check suite when check 1 fails with failFast', async () => {
+      const orchestrator = new VerificationOrchestrator({
+        cwd: tempDir,
+        failFast: true,
+        allowlist: [
+          'node -e "process.exit(1)"',
+          'node -e "process.exit(0)"',
+        ],
+      });
+
+      const started: string[] = [];
+      const suite: VerificationCheckDefinition[] = [
+        { name: 'Check 1 (Fails)', command: 'node -e "process.exit(1)"' },
+        { name: 'Check 2', command: 'node -e "process.exit(0)"' },
+        { name: 'Check 3', command: 'node -e "process.exit(0)"' },
+        { name: 'Check 4', command: 'node -e "process.exit(0)"' },
+      ];
+
+      const result = await orchestrator.verify(suite, {
+        onCheckStart: (c) => started.push(c.name),
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.overallOutcome).toBe('FAILED');
+      expect(result.totalChecks).toBe(4);
+      expect(result.failedCount).toBe(1);
+      expect(result.skippedCount).toBe(3);
+      expect(result.passedCount).toBe(0);
+      expect(started).toEqual(['Check 1 (Fails)']);
+      expect(result.checks[0]?.outcome).toBe('FAILED');
+      expect(result.checks[1]?.outcome).toBe('SKIPPED');
+      expect(result.checks[2]?.outcome).toBe('SKIPPED');
+      expect(result.checks[3]?.outcome).toBe('SKIPPED');
+    });
+
+    it('aborts subsequent checks and marks them SKIPPED when a check times out with failFast', async () => {
+      const orchestrator = new VerificationOrchestrator({
+        cwd: tempDir,
+        failFast: true,
+        defaultTimeoutMs: 150,
+        allowlist: [
+          'node -e "setTimeout(() => {}, 5000)"',
+          'node -e "process.exit(0)"',
+        ],
+      });
+
+      const suite: VerificationCheckDefinition[] = [
+        { name: 'Timing Out Check', command: 'node -e "setTimeout(() => {}, 5000)"' },
+        { name: 'Unreached Check', command: 'node -e "process.exit(0)"' },
+      ];
+
+      const result = await orchestrator.verify(suite);
+      expect(result.passed).toBe(false);
+      expect(result.overallOutcome).toBe('TIMED_OUT');
+      expect(result.totalChecks).toBe(2);
+      expect(result.timedOutCount).toBe(1);
+      expect(result.skippedCount).toBe(1);
+      expect(result.checks[0]?.outcome).toBe('TIMED_OUT');
+      expect(result.checks[1]?.outcome).toBe('SKIPPED');
+    });
+
+    it('aborts subsequent checks and marks them SKIPPED when an execution error occurs with failFast', async () => {
+      const orchestrator = new VerificationOrchestrator({
+        cwd: tempDir,
+        failFast: true,
+        allowlist: ['node -e "process.exit(0)"'],
+      });
+
+      const suite: VerificationCheckDefinition[] = [
+        { name: 'Disallowed Check', command: 'curl http://malicious.com' },
+        { name: 'Unreached Check', command: 'node -e "process.exit(0)"' },
+      ];
+
+      const result = await orchestrator.verify(suite);
+      expect(result.passed).toBe(false);
+      expect(result.overallOutcome).toBe('ERROR');
+      expect(result.totalChecks).toBe(2);
+      expect(result.failedCount).toBe(1);
+      expect(result.skippedCount).toBe(1);
+      expect(result.checks[0]?.outcome).toBe('ERROR');
+      expect(result.checks[1]?.outcome).toBe('SKIPPED');
     });
 
     it('does not abort on optional check failures even with failFast enabled', async () => {
@@ -140,6 +231,7 @@ describe('Verification: VerificationOrchestrator Workflow', () => {
       expect(result.totalChecks).toBe(2);
       expect(result.checks[0]?.outcome).toBe('FAILED');
       expect(result.checks[1]?.outcome).toBe('PASSED');
+      expect(result.overallOutcome).toBe('PASSED');
     });
 
     it('sanitizes leaked secrets from stdout and stderr in check results', async () => {
