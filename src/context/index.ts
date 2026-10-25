@@ -7,5 +7,5 @@
  *
  * @todo Implementation planned in assigned milestone.
  */
-
-export {};
+export * from './context-builder.js';
+export * from './secret-redactor.js';
