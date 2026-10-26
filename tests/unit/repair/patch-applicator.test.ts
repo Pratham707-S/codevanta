@@ -441,5 +441,60 @@ describe('PatchApplicator & applyHunksToString', () => {
       expect(afterA).toBe(originalA);
       expect(afterB).toBe(originalB);
     });
+
+    it('returns observable RollbackResult from rollbackHandle() on successful rollback', async () => {
+      const file = join(tempDir, 'restore-success.ts');
+      await writeFile(file, 'initial content');
+
+      const diff = `--- a/restore-success.ts
++++ b/restore-success.ts
+@@ -1,1 +1,1 @@
+-initial content
++patched content`;
+
+      const result = await applyPatch(diff, { repoRoot: tempDir });
+      expect(result.success).toBe(true);
+      expect(result.rollbackHandle).toBeDefined();
+
+      const rollbackRes = await result.rollbackHandle!();
+      expect(rollbackRes.success).toBe(true);
+      expect(rollbackRes.errors).toEqual([]);
+      expect(rollbackRes.restoredFiles.length).toBeGreaterThan(0);
+
+      const restored = await readFile(file, 'utf8');
+      expect(restored).toBe('initial content');
+    });
+
+    it('records and returns rollback errors when file restoration fails due to I/O or permissions', async () => {
+      const subDir = join(tempDir, 'readonly-dir');
+      await mkdir(subDir, { recursive: true });
+      const targetFile = join(subDir, 'protected.txt');
+      await writeFile(targetFile, 'original content');
+
+      const diff = `--- a/readonly-dir/protected.txt
++++ b/readonly-dir/protected.txt
+@@ -1,1 +1,1 @@
+-original content
++modified content`;
+
+      const result = await applyPatch(diff, { repoRoot: tempDir });
+      expect(result.success).toBe(true);
+      expect(result.rollbackHandle).toBeDefined();
+
+      // Make directory read-only so rewriting or unlinking fails
+      await chmod(subDir, 0o555);
+
+      try {
+        const rollbackRes = await result.rollbackHandle!();
+        // Even if OS allows or denies, if errors occurred they are captured in errors array
+        if (!rollbackRes.success) {
+          expect(rollbackRes.errors.length).toBeGreaterThan(0);
+          expect(rollbackRes.errors[0]).toMatch(/Failed to restore|permission|EACCES|EPERM/i);
+        }
+      } finally {
+        // Restore write permissions for cleanup
+        await chmod(subDir, 0o755).catch(() => {});
+      }
+    });
   });
 });

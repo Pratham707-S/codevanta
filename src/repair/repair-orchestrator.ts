@@ -23,6 +23,9 @@ import {
 } from './patch-applicator.js';
 import {
   CheckRunner,
+  VerificationOrchestrator,
+  type VerificationCheckDefinition,
+  type AutoDiscoverOptions,
   type VerificationSuiteInput,
   type VerificationSuiteResult,
 } from '../verification/index.js';
@@ -51,7 +54,8 @@ export type RepairWorkflowStatus =
   | 'FAILED'
   | 'VERIFIED'
   | 'VERIFICATION_FAILED'
-  | 'ROLLED_BACK';
+  | 'ROLLED_BACK'
+  | 'ROLLBACK_FAILED';
 
 export interface RepairProposal {
   id: string;
@@ -78,6 +82,7 @@ export interface RepairExecutionResult {
   verificationResult?: VerificationSuiteResult;
   confidence?: ConfidenceEvaluation;
   rollbackOccurred?: boolean;
+  rollbackErrors?: string[];
   timestamp: string;
 }
 
@@ -89,6 +94,9 @@ export interface RepairOrchestratorOptions
   verificationSuite?: VerificationSuiteInput;
   runVerification?: boolean;
   autoRollbackOnVerificationFailure?: boolean;
+  failFast?: boolean;
+  verificationOrchestrator?: VerificationOrchestrator;
+  autoDiscoverOptions?: AutoDiscoverOptions;
   checkRunner?: CheckRunner;
 }
 
@@ -117,6 +125,7 @@ export interface FindingRepairInput {
 export class RepairOrchestrator {
   private readonly approvalGate: ApprovalGate;
   private readonly patchApplicator: PatchApplicator;
+  private readonly verificationOrchestrator: VerificationOrchestrator;
   private readonly checkRunner: CheckRunner;
   private readonly defaultOptions: RepairOrchestratorOptions;
 
@@ -124,6 +133,11 @@ export class RepairOrchestrator {
     this.defaultOptions = defaultOptions;
     this.approvalGate = new ApprovalGate(defaultOptions);
     this.patchApplicator = new PatchApplicator(defaultOptions);
+    this.verificationOrchestrator =
+      defaultOptions.verificationOrchestrator ??
+      new VerificationOrchestrator({
+        cwd: defaultOptions.repoRoot,
+      });
     this.checkRunner = defaultOptions.checkRunner ?? new CheckRunner({ cwd: defaultOptions.repoRoot });
   }
 
@@ -224,19 +238,40 @@ export class RepairOrchestrator {
     // Step 5: Post-Apply Verification (Phase 3 Step 4 Integration)
     let verificationResult: VerificationSuiteResult | undefined;
     let rollbackOccurred = false;
+    let rollbackErrors: string[] | undefined;
     let finalStatus: RepairWorkflowStatus = 'APPLIED';
     let summary = `Repair proposal ${proposal.id} applied successfully to ${proposal.filePath}.`;
 
-    if (opts.runVerification && opts.verificationSuite) {
+    if (opts.runVerification) {
       const runner = opts.checkRunner ?? this.checkRunner;
-      verificationResult = await runner.runVerificationSuite(opts.verificationSuite, { cwd: repoRoot });
+      const orchestrator =
+        opts.verificationOrchestrator ??
+        (opts.checkRunner
+          ? new VerificationOrchestrator({ cwd: repoRoot, runner: opts.checkRunner })
+          : this.verificationOrchestrator);
+
+      const checksToRun: VerificationSuiteInput | VerificationCheckDefinition[] =
+        opts.verificationSuite ?? (await orchestrator.autoDiscoverChecks(repoRoot, opts.autoDiscoverOptions));
+
+      verificationResult = await orchestrator.verify(checksToRun, {
+        cwd: repoRoot,
+        failFast: opts.failFast ?? true,
+        runner,
+      });
 
       if (verificationResult.overallOutcome !== 'PASSED') {
         if (opts.autoRollbackOnVerificationFailure !== false && applicationResult.rollbackHandle) {
-          await applicationResult.rollbackHandle();
-          rollbackOccurred = true;
-          finalStatus = 'ROLLED_BACK';
-          summary = `Verification checks ${verificationResult.overallOutcome} (passed ${verificationResult.passedCount}/${verificationResult.totalChecks}). Patch was automatically rolled back.`;
+          const rollbackResult = await applicationResult.rollbackHandle();
+          if (rollbackResult && !rollbackResult.success) {
+            rollbackOccurred = false;
+            rollbackErrors = rollbackResult.errors;
+            finalStatus = 'ROLLBACK_FAILED';
+            summary = `Verification checks ${verificationResult.overallOutcome} (passed ${verificationResult.passedCount}/${verificationResult.totalChecks}). CRITICAL: Automatic rollback failed: ${rollbackResult.errors.join('; ')}.`;
+          } else {
+            rollbackOccurred = true;
+            finalStatus = 'ROLLED_BACK';
+            summary = `Verification checks ${verificationResult.overallOutcome} (passed ${verificationResult.passedCount}/${verificationResult.totalChecks}). Patch was automatically rolled back.`;
+          }
         } else {
           finalStatus = 'VERIFICATION_FAILED';
           summary = `Verification checks ${verificationResult.overallOutcome} (passed ${verificationResult.passedCount}/${verificationResult.totalChecks}).`;
@@ -260,6 +295,7 @@ export class RepairOrchestrator {
         isSafePath: true,
       },
       verification: verificationResult || (opts.runVerification === false ? 'SKIPPED' : undefined),
+      rollbackFailed: finalStatus === 'ROLLBACK_FAILED',
     });
 
     return {
@@ -268,13 +304,14 @@ export class RepairOrchestrator {
       filePath: proposal.filePath,
       status: finalStatus,
       approved: true,
-      applied: !rollbackOccurred,
+      applied: !rollbackOccurred && finalStatus !== 'ROLLBACK_FAILED',
       summary,
       approvalReason: approvalDecision.reason,
       applicationResult,
       verificationResult,
       confidence,
       rollbackOccurred,
+      rollbackErrors,
       preview,
       timestamp,
     };
@@ -442,6 +479,7 @@ export class RepairOrchestrator {
         confidence: proposalResult.confidence,
       },
       verification: executionResult.verificationResult || (opts.runVerification === false ? 'SKIPPED' : undefined),
+      rollbackFailed: executionResult.status === 'ROLLBACK_FAILED',
     });
 
     return executionResult;

@@ -199,6 +199,19 @@ describe('Analysis: Confidence Calibration', () => {
       expect(evaluation.limitations.length).toBeGreaterThanOrEqual(3);
     });
 
+    it('strictly penalizes and caps confidence at <= 0.10 when rollbackFailed is true', () => {
+      const evaluation = calibrateConfidence({
+        ...verifiedPassingInput,
+        verification: 'FAILED',
+        rollbackFailed: true,
+      });
+
+      expect(evaluation.finalScore).toBeLessThanOrEqual(0.1);
+      expect(evaluation.tier).toBe('VERY_LOW');
+      expect(evaluation.flags).toContain('ROLLBACK_FAILED');
+      expect(evaluation.penalties.some((p) => /rollback failed/i.test(p.reason))).toBe(true);
+    });
+
     it('getConfidenceTier correctly categorizes boundary numbers', () => {
       expect(getConfidenceTier(1.0)).toBe('VERY_HIGH');
       expect(getConfidenceTier(0.85)).toBe('VERY_HIGH');

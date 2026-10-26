@@ -56,6 +56,7 @@ export {
   applyPatch,
   applyHunksToString,
   type PatchApplicationResult,
+  type RollbackResult,
   type FilePatchResult,
   type PatchApplicatorOptions,
 } from './patch-applicator.js';

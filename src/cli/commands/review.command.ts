@@ -74,12 +74,9 @@ export function registerReviewCommand(program: Command): void {
           name: 'CLI Post-Patch Verification',
           checks: [{ name: 'cli-check', command: options.check }],
         };
-      } else if (options.verify) {
-        verificationSuite = {
-          name: 'Default Test Verification',
-          checks: [{ name: 'npm-test', command: 'npm test' }],
-        };
       }
+      // When options.verify is true without --check, verificationSuite is undefined,
+      // which allows RepairOrchestrator to automatically discover checks from package.json.
 
       const orchestrator = new RepairOrchestrator({
         autoApprove: options.yes,
@@ -128,6 +125,13 @@ export function registerReviewCommand(program: Command): void {
           console.log(chalk.green(`✔ Patch successfully applied to disk: ${result.filePath}\n`));
         } else if (result.status === 'ROLLED_BACK') {
           console.log(chalk.yellow(`↺ Patch was applied but rolled back due to verification failure: ${result.summary}\n`));
+        } else if (result.status === 'ROLLBACK_FAILED') {
+          console.log(
+            chalk.red.bold(`🚨 CRITICAL: Patch verification failed and automatic rollback FAILED! Workspace may be dirty: ${result.summary}\n`)
+          );
+          if (result.rollbackErrors && result.rollbackErrors.length > 0) {
+            result.rollbackErrors.forEach((err) => console.log(chalk.red(`   - ${err}`)));
+          }
         } else {
           console.log(chalk.red(`✖ Patch application failed: ${result.summary}\n`));
         }
@@ -144,6 +148,8 @@ export function registerReviewCommand(program: Command): void {
 
           if (result.rollbackOccurred) {
             console.log(chalk.yellow(`↺ Workspace automatically rolled back to clean pre-patch state.\n`));
+          } else if (result.status === 'ROLLBACK_FAILED') {
+            console.log(chalk.red.bold(`🚨 Workspace rollback was INCOMPLETE. Manual intervention required.\n`));
           }
         } else if (options.verify === false) {
           console.log(chalk.dim(`ℹ Automated verification was skipped (--no-verify).\n`));

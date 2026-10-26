@@ -46,6 +46,7 @@ export interface CalibrationInput {
   finding?: Partial<StorageFinding>;
   repair?: Partial<RepairProposalResult>;
   verification?: Partial<VerificationSuiteResult> | CheckOutcome;
+  rollbackFailed?: boolean;
 }
 
 /**
@@ -273,6 +274,16 @@ export function calibrateConfidence(input: CalibrationInput): ConfidenceEvaluati
   // Invariant 3: If diff is invalid or path unsafe, confidence is capped at 0.20
   if (!isValidDiff || !isSafePath) {
     rawTotal = Math.min(rawTotal, 0.2);
+  }
+
+  // Invariant 4: If rollback failed, workspace is in dirty/inconsistent state; cap confidence at 0.10
+  if (input.rollbackFailed) {
+    flags.push('ROLLBACK_FAILED');
+    penalties.push({
+      reason: 'Automatic rollback failed leaving workspace in unverified/inconsistent state',
+      deduction: 0.5,
+    });
+    rawTotal = Math.min(rawTotal, 0.1);
   }
 
   const finalScore = Number(clamp(rawTotal, 0, 1).toFixed(2));

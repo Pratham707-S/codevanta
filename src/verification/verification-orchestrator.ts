@@ -26,6 +26,7 @@ export interface VerificationCheckDefinition {
 }
 
 export interface VerificationOrchestratorOptions extends CheckRunnerOptions {
+  runner?: CheckRunner;
   failFast?: boolean;
   onCheckStart?: (check: VerificationCheckDefinition) => void;
   onCheckComplete?: (result: VerificationCheckResult) => void;
@@ -59,7 +60,7 @@ export class VerificationOrchestrator {
 
   constructor(options: VerificationOrchestratorOptions = {}) {
     this.options = options;
-    this.runner = new CheckRunner(options);
+    this.runner = options.runner ?? new CheckRunner(options);
   }
 
   /**
@@ -146,7 +147,8 @@ export class VerificationOrchestrator {
         opts.onCheckStart(check);
       }
 
-      const rawResult = await this.runner.runCheck(check.name, check.command, {
+      const runner = opts.runner ?? this.runner;
+      const rawResult = await runner.runCheck(check.name, check.command, {
         cwd: opts.cwd,
         timeoutMs: opts.defaultTimeoutMs,
       });

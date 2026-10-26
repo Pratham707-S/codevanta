@@ -165,4 +165,98 @@ describe('E2E: repoguard review command', () => {
       }
     }
   });
+
+  it('executes review command with --yes and --check passing verification check', async () => {
+    const fixtureDir = join(process.cwd(), 'tests', 'fixtures');
+    await mkdir(fixtureDir, { recursive: true });
+    const targetFile = join(fixtureDir, 'review-check-pass.ts');
+    await writeFile(targetFile, 'const unvalidatedInput = req.body;\n');
+
+    try {
+      const applyRun: ScanRunRecord = {
+        runId: 'run-test-finding-check-pass',
+        timestamp: new Date(Date.now() + 5000).toISOString(),
+        projectName: 'review-check-pass-test',
+        repositoryRoot: process.cwd(),
+        filesScanned: 1,
+        findingsCount: 1,
+        durationMs: 10,
+        summary: { critical: 0, high: 1, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'SEC-005-check-pass',
+            category: 'Security / Input Validation',
+            severity: 'HIGH',
+            title: 'Input Check',
+            path: 'tests/fixtures/review-check-pass.ts',
+            lineRange: { start: 1, end: 1 },
+            explanation: 'Unvalidated input.',
+          },
+        ],
+      };
+      await runStore.saveRun(applyRun);
+
+      const program = createCliProgram('0.1.2');
+      await program.parseAsync(['node', 'repoguard', 'review', '--yes', '--check', 'node -e "process.exit(0)"']);
+
+      const fullOutput = logOutput.join('\n');
+      expect(fullOutput).toContain('explicitly APPROVED');
+      expect(fullOutput).toContain('Patch successfully applied to disk');
+      expect(fullOutput).toContain('Automated verification PASSED');
+    } finally {
+      if (existsSync(targetFile)) {
+        await rm(targetFile, { force: true });
+      }
+    }
+  });
+
+  it('executes review command with --yes and --check failing verification and rolls back', async () => {
+    const fixtureDir = join(process.cwd(), 'tests', 'fixtures');
+    await mkdir(fixtureDir, { recursive: true });
+    const targetFile = join(fixtureDir, 'review-check-fail.ts');
+    const originalContent = 'const unvalidatedInput = req.body;\n';
+    await writeFile(targetFile, originalContent);
+
+    try {
+      const applyRun: ScanRunRecord = {
+        runId: 'run-test-finding-check-fail',
+        timestamp: new Date(Date.now() + 6000).toISOString(),
+        projectName: 'review-check-fail-test',
+        repositoryRoot: process.cwd(),
+        filesScanned: 1,
+        findingsCount: 1,
+        durationMs: 10,
+        summary: { critical: 0, high: 1, medium: 0, low: 0, info: 0 },
+        findings: [
+          {
+            id: 'SEC-006-check-fail',
+            category: 'Security / Input Validation',
+            severity: 'HIGH',
+            title: 'Input Check Failure',
+            path: 'tests/fixtures/review-check-fail.ts',
+            lineRange: { start: 1, end: 1 },
+            explanation: 'Unvalidated input.',
+          },
+        ],
+      };
+      await runStore.saveRun(applyRun);
+
+      const program = createCliProgram('0.1.2');
+      await program.parseAsync(['node', 'repoguard', 'review', '--yes', '--check', 'node -e "process.exit(1)"']);
+
+      const fullOutput = logOutput.join('\n');
+      expect(fullOutput).toContain('explicitly APPROVED');
+      expect(fullOutput).toContain('rolled back due to verification failure');
+      expect(fullOutput).toContain('Automated verification FAILED');
+      expect(fullOutput).toContain('automatically rolled back to clean pre-patch state');
+
+      // Verify file was restored
+      const after = await readFile(targetFile, 'utf8');
+      expect(after).toBe(originalContent);
+    } finally {
+      if (existsSync(targetFile)) {
+        await rm(targetFile, { force: true });
+      }
+    }
+  });
 });
