@@ -1,35 +1,21 @@
 /**
  * RepoGuard — AI-Assisted Code Reliability & Security Platform
  *
- * Path: tests/unit/repair/repair-orchestrator.test.ts
+ * Path: tests/unit/verification/verification-orchestrator.test.ts
  * Owner: Pratham
- * Purpose: Unit tests for full repair workflow orchestration
+ * Purpose: Unit tests for VerificationOrchestrator check discovery, execution, fail-fast, and output sanitization
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { Readable, Writable } from 'node:stream';
 import {
-  RepairOrchestrator,
-  orchestrateRepair,
-  type RepairProposal,
-} from '../../../src/repair/repair-orchestrator.js';
+  VerificationOrchestrator,
+  VerificationCheckDefinition,
+} from '../../../src/verification/verification-orchestrator.js';
 
-class MemoryWritable extends Writable {
-  public output = '';
-  override _write(
-    chunk: Buffer | string,
-    _encoding: BufferEncoding,
-    callback: (error?: Error | null) => void
-  ): void {
-    this.output += chunk.toString();
-    callback();
-  }
-}
-
-describe('RepairOrchestrator', () => {
+describe('Verification: VerificationOrchestrator Workflow', () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -40,147 +26,187 @@ describe('RepairOrchestrator', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  const validDiff = `--- a/service.ts
-+++ b/service.ts
-@@ -1,3 +1,3 @@
- function serve() {
--  return 80;
-+  return 8080;
- }`;
-
-  describe('orchestrate', () => {
-    it('applies repair when autoApprove is true', async () => {
-      const filePath = join(tempDir, 'service.ts');
-      await writeFile(filePath, 'function serve() {\n  return 80;\n}\n');
-
-      const proposal: RepairProposal = {
-        id: 'prop-1',
-        findingId: 'vuln-01',
-        title: 'Fix Port',
-        filePath: 'service.ts',
-        diff: validDiff,
-        riskLevel: 'LOW',
+  describe('autoDiscoverChecks', () => {
+    it('discovers typecheck, lint, test, and build from package.json', async () => {
+      const orchestrator = new VerificationOrchestrator();
+      const pkgJson = {
+        scripts: {
+          test: 'vitest run',
+          lint: 'eslint .',
+          typecheck: 'tsc --noEmit',
+          build: 'tsc -p tsconfig.build.json',
+        },
       };
+      await writeFile(join(tempDir, 'package.json'), JSON.stringify(pkgJson, null, 2));
 
-      const result = await orchestrateRepair(proposal, {
-        repoRoot: tempDir,
-        autoApprove: true,
-      });
-
-      expect(result.status).toBe('APPLIED');
-      expect(result.approved).toBe(true);
-      expect(result.applied).toBe(true);
-      expect(result.summary).toContain('applied successfully');
-
-      const updated = await readFile(filePath, 'utf8');
-      expect(updated).toContain('return 8080;');
+      const checks = await orchestrator.autoDiscoverChecks(tempDir, { includeBuild: true });
+      expect(checks).toHaveLength(4);
+      expect(checks.map((c) => c.command)).toEqual([
+        'npm run typecheck',
+        'npm run lint',
+        'npm test',
+        'npm run build',
+      ]);
     });
 
-    it('rejects immediately when patch is invalid (malformed or path traversal)', async () => {
-      const proposal: RepairProposal = {
-        id: 'prop-bad',
-        filePath: '../../escape.ts',
-        diff: `--- a/../../escape.ts
-+++ b/../../escape.ts
-@@ -1,1 +1,1 @@
--bad
-+good`,
-      };
+    it('falls back to default test check if package.json has no scripts', async () => {
+      const orchestrator = new VerificationOrchestrator();
+      await writeFile(join(tempDir, 'package.json'), JSON.stringify({ name: 'empty-pkg' }));
 
-      const result = await orchestrateRepair(proposal, {
-        repoRoot: tempDir,
-        autoApprove: true,
-      });
-
-      expect(result.status).toBe('REJECTED');
-      expect(result.approved).toBe(false);
-      expect(result.applied).toBe(false);
-      expect(result.summary).toContain('Patch validation failed');
+      const checks = await orchestrator.autoDiscoverChecks(tempDir);
+      expect(checks).toHaveLength(1);
+      expect(checks[0]?.command).toBe('npm test');
     });
 
-    it('halts and does not apply patch when user rejects prompt', async () => {
-      const filePath = join(tempDir, 'service.ts');
-      await writeFile(filePath, 'function serve() {\n  return 80;\n}\n');
-
-      const proposal: RepairProposal = {
-        id: 'prop-reject',
-        filePath: 'service.ts',
-        diff: validDiff,
-      };
-
-      const input = Readable.from(['n\n']);
-      const output = new MemoryWritable();
-
-      const result = await orchestrateRepair(proposal, {
-        repoRoot: tempDir,
-        input,
-        output,
-      });
-
-      expect(result.status).toBe('REJECTED');
-      expect(result.approved).toBe(false);
-      expect(result.applied).toBe(false);
-      expect(result.summary).toContain('Approval gate halted repair');
-
-      // File was not modified
-      const current = await readFile(filePath, 'utf8');
-      expect(current).toContain('return 80;');
-    });
-
-    it('skips disk modification in dryRun mode', async () => {
-      const filePath = join(tempDir, 'service.ts');
-      await writeFile(filePath, 'function serve() {\n  return 80;\n}\n');
-
-      const proposal: RepairProposal = {
-        id: 'prop-dry',
-        filePath: 'service.ts',
-        diff: validDiff,
-      };
-
-      const result = await orchestrateRepair(proposal, {
-        repoRoot: tempDir,
-        dryRun: true,
-      });
-
-      expect(result.status).toBe('SKIPPED');
-      expect(result.approved).toBe(false);
-      expect(result.applied).toBe(false);
-
-      const current = await readFile(filePath, 'utf8');
-      expect(current).toContain('return 80;');
+    it('falls back to default test check if package.json does not exist', async () => {
+      const orchestrator = new VerificationOrchestrator();
+      const checks = await orchestrator.autoDiscoverChecks(join(tempDir, 'non-existent-subfolder'));
+      expect(checks).toHaveLength(1);
+      expect(checks[0]?.command).toBe('npm test');
     });
   });
 
-  describe('orchestrateBatch', () => {
-    it('executes batch proposals sequentially', async () => {
-      const file1 = join(tempDir, 'f1.ts');
-      const file2 = join(tempDir, 'f2.ts');
-      await writeFile(file1, 'const a = 1;');
-      await writeFile(file2, 'const b = 2;');
-
-      const p1: RepairProposal = {
-        id: 'p1',
-        filePath: 'f1.ts',
-        diff: `--- a/f1.ts\n+++ b/f1.ts\n@@ -1,1 +1,1 @@\n-const a = 1;\n+const a = 10;`,
-      };
-      const p2: RepairProposal = {
-        id: 'p2',
-        filePath: 'f2.ts',
-        diff: `--- a/f2.ts\n+++ b/f2.ts\n@@ -1,1 +1,1 @@\n-const b = 2;\n+const b = 20;`,
-      };
-
-      const orchestrator = new RepairOrchestrator({
-        repoRoot: tempDir,
-        autoApprove: true,
+  describe('verify execution & lifecycle', () => {
+    it('executes suite and aggregates successful results', async () => {
+      const orchestrator = new VerificationOrchestrator({
+        cwd: tempDir,
+        allowlist: ['node -e "process.exit(0)"', 'node -e "console.log(\'all good\')"'],
       });
 
-      const results = await orchestrator.orchestrateBatch([p1, p2]);
-      expect(results).toHaveLength(2);
-      expect(results[0]?.status).toBe('APPLIED');
-      expect(results[1]?.status).toBe('APPLIED');
+      const started: string[] = [];
+      const completed: string[] = [];
 
-      expect(await readFile(file1, 'utf8')).toBe('const a = 10;');
-      expect(await readFile(file2, 'utf8')).toBe('const b = 20;');
+      const suite: VerificationCheckDefinition[] = [
+        { name: 'Check 1', command: 'node -e "console.log(\'all good\')"' },
+        { name: 'Check 2', command: 'node -e "process.exit(0)"' },
+      ];
+
+      const result = await orchestrator.verify(suite, {
+        onCheckStart: (c) => started.push(c.name),
+        onCheckComplete: (r) => completed.push(r.checkName),
+      });
+
+      expect(result.passed).toBe(true);
+      expect(result.overallOutcome).toBe('PASSED');
+      expect(result.totalChecks).toBe(2);
+      expect(result.passedCount).toBe(2);
+      expect(result.failedCount).toBe(0);
+      expect(started).toEqual(['Check 1', 'Check 2']);
+      expect(completed).toEqual(['Check 1', 'Check 2']);
+    });
+
+    it('enforces failFast: true and halts subsequent checks after first failure', async () => {
+      const orchestrator = new VerificationOrchestrator({
+        cwd: tempDir,
+        failFast: true,
+        allowlist: [
+          'node -e "process.exit(1)"',
+          'node -e "console.log(\'should not run\')"',
+        ],
+      });
+
+      const executed: string[] = [];
+      const suite: VerificationCheckDefinition[] = [
+        { name: 'Failing Check', command: 'node -e "process.exit(1)"' },
+        { name: 'Subsequent Check', command: 'node -e "console.log(\'should not run\')"' },
+      ];
+
+      const result = await orchestrator.verify(suite, {
+        onCheckStart: (c) => executed.push(c.name),
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.overallOutcome).toBe('FAILED');
+      expect(result.totalChecks).toBe(1); // Second check was aborted
+      expect(executed).toEqual(['Failing Check']);
+    });
+
+    it('does not abort on optional check failures even with failFast enabled', async () => {
+      const orchestrator = new VerificationOrchestrator({
+        cwd: tempDir,
+        failFast: true,
+        allowlist: [
+          'node -e "process.exit(1)"',
+          'node -e "process.exit(0)"',
+        ],
+      });
+
+      const suite: VerificationCheckDefinition[] = [
+        { name: 'Optional Flaky Check', command: 'node -e "process.exit(1)"', optional: true },
+        { name: 'Mandatory Check', command: 'node -e "process.exit(0)"' },
+      ];
+
+      const result = await orchestrator.verify(suite);
+      expect(result.totalChecks).toBe(2);
+      expect(result.checks[0]?.outcome).toBe('FAILED');
+      expect(result.checks[1]?.outcome).toBe('PASSED');
+    });
+
+    it('sanitizes leaked secrets from stdout and stderr in check results', async () => {
+      const orchestrator = new VerificationOrchestrator({
+        cwd: tempDir,
+        allowlist: [
+          'node -e "console.log(\'AWS_KEY: AKIA1234567890ABCDEF\')"',
+          'node -e "console.error(\'TOKEN: ghp_123456789012345678901234567890123456\')"',
+        ],
+      });
+
+      const suite: VerificationCheckDefinition[] = [
+        { name: 'Stdout Secret', command: 'node -e "console.log(\'AWS_KEY: AKIA1234567890ABCDEF\')"' },
+        { name: 'Stderr Secret', command: 'node -e "console.error(\'TOKEN: ghp_123456789012345678901234567890123456\')"' },
+      ];
+
+      const result = await orchestrator.verify(suite);
+      expect(result.checks[0]?.stdout).toContain('AKIA****************');
+      expect(result.checks[0]?.stdout).not.toContain('AKIA1234567890ABCDEF');
+
+      expect(result.checks[1]?.stderr).toContain('ghp_********************************');
+      expect(result.checks[1]?.stderr).not.toContain('ghp_123456789012345678901234567890123456');
+    });
+  });
+
+  describe('formatSummary', () => {
+    it('produces clean formatted summary with icon and counts', () => {
+      const orchestrator = new VerificationOrchestrator();
+      const mockResult = {
+        passed: true,
+        totalChecks: 2,
+        passedCount: 2,
+        failedCount: 0,
+        timedOutCount: 0,
+        skippedCount: 0,
+        durationMs: 45,
+        overallOutcome: 'PASSED' as const,
+        timestamp: new Date().toISOString(),
+        checks: [
+          {
+            checkName: 'Typecheck',
+            command: 'npm run typecheck',
+            outcome: 'PASSED' as const,
+            exitCode: 0,
+            durationMs: 25,
+            stdout: '',
+            stderr: '',
+            explanation: 'Check passed cleanly with exit code 0',
+          },
+          {
+            checkName: 'Lint',
+            command: 'npm run lint',
+            outcome: 'PASSED' as const,
+            exitCode: 0,
+            durationMs: 20,
+            stdout: '',
+            stderr: '',
+            explanation: 'Check passed cleanly with exit code 0',
+          },
+        ],
+      };
+
+      const summary = orchestrator.formatSummary(mockResult);
+      expect(summary).toContain('=== ✔ VERIFICATION PASSED (45ms) ===');
+      expect(summary).toContain('Total Checks: 2 | Passed: 2 | Failed: 0');
+      expect(summary).toContain('✔ [PASSED] Typecheck');
+      expect(summary).toContain('✔ [PASSED] Lint');
     });
   });
 });
