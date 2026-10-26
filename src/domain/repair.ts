@@ -20,7 +20,8 @@ export type RepairWorkflowStatus =
   | 'FAILED'
   | 'VERIFIED'
   | 'VERIFICATION_FAILED'
-  | 'ROLLED_BACK';
+  | 'ROLLED_BACK'
+  | 'ROLLBACK_FAILED';
 
 export interface UnifiedDiffPatch {
   rawDiff: string;
@@ -77,5 +78,6 @@ export interface RepairExecutionResult {
     rationale: string[];
   };
   rollbackOccurred?: boolean;
+  rollbackErrors?: string[];
   timestamp: string;
 }

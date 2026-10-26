@@ -27,12 +27,18 @@ export interface FilePatchResult {
   isDeletedFile?: boolean;
 }
 
+export interface RollbackResult {
+  success: boolean;
+  restoredFiles: string[];
+  errors: string[];
+}
+
 export interface PatchApplicationResult {
   success: boolean;
   appliedFiles: FilePatchResult[];
   errors: string[];
   timestamp: string;
-  rollbackHandle?: () => Promise<void>;
+  rollbackHandle?: () => Promise<RollbackResult>;
 }
 
 export interface PatchApplicatorOptions {
@@ -315,10 +321,13 @@ export class PatchApplicator {
 
     // Rollback if any file failed and dryRun was false
     if (!overallSuccess && !opts.dryRun) {
-      await this.rollback(backups, createdDirs);
+      const rollbackResult = await this.rollback(backups, createdDirs);
+      if (!rollbackResult.success) {
+        errors.push(...rollbackResult.errors);
+      }
       for (const res of appliedFiles) {
         if (res.backupCreated) {
-          res.rolledBack = true;
+          res.rolledBack = rollbackResult.restoredFiles.includes(res.filePath);
         }
       }
     }
@@ -330,8 +339,8 @@ export class PatchApplicator {
       timestamp,
       rollbackHandle:
         overallSuccess && !opts.dryRun
-          ? async () => {
-              await this.rollback(backups, createdDirs);
+          ? async (): Promise<RollbackResult> => {
+              return await this.rollback(backups, createdDirs);
             }
           : undefined,
     };
@@ -515,24 +524,49 @@ export class PatchApplicator {
   /**
    * Rolls back all modified/created files to their state prior to the failed patch application.
    */
-  private async rollback(backups: FileBackup[], createdDirs: string[] = []): Promise<void> {
+  private async rollback(backups: FileBackup[], createdDirs: string[] = []): Promise<RollbackResult> {
+    const errors: string[] = [];
+    const restoredFiles: string[] = [];
+
     // 1. Rollback files
     for (let i = backups.length - 1; i >= 0; i--) {
       const backup = backups[i]!;
-      try {
-        if (!backup.exists) {
-          // File was newly created; remove it
-          await unlink(backup.path).catch(() => {});
-        } else if (backup.content !== undefined) {
-          // File was modified or deleted; restore original content and original permissions
+      if (!backup.exists) {
+        // File was newly created; remove it
+        try {
+          await unlink(backup.path);
+          restoredFiles.push(backup.path);
+        } catch (unlinkErr: unknown) {
+          try {
+            await stat(backup.path);
+            errors.push(
+              `Failed to remove newly created file during rollback "${backup.path}": ${unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr)}`
+            );
+          } catch {
+            // File does not exist, consider restored
+            restoredFiles.push(backup.path);
+          }
+        }
+      } else if (backup.content !== undefined) {
+        // File was modified or deleted; restore original content and original permissions
+        try {
           await mkdir(dirname(backup.path), { recursive: true });
           await writeFile(backup.path, backup.content, { encoding: 'utf8', mode: backup.mode });
           if (backup.mode !== undefined) {
-            await chmod(backup.path, backup.mode).catch(() => {});
+            try {
+              await chmod(backup.path, backup.mode);
+            } catch (chmodErr: unknown) {
+              errors.push(
+                `Failed to restore permissions for "${backup.path}": ${chmodErr instanceof Error ? chmodErr.message : String(chmodErr)}`
+              );
+            }
           }
+          restoredFiles.push(backup.path);
+        } catch (writeErr: unknown) {
+          errors.push(
+            `Failed to restore file content for "${backup.path}": ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`
+          );
         }
-      } catch {
-        // Rollback best-effort
       }
     }
 
@@ -541,10 +575,25 @@ export class PatchApplicator {
       const dir = createdDirs[i]!;
       try {
         await rmdir(dir);
-      } catch {
-        // rmdir only removes empty directories; safely ignore if not empty
+      } catch (rmdirErr: unknown) {
+        try {
+          const dirStat = await stat(dir);
+          if (dirStat.isDirectory()) {
+            errors.push(
+              `Failed to prune directory during rollback "${dir}": ${rmdirErr instanceof Error ? rmdirErr.message : String(rmdirErr)}`
+            );
+          }
+        } catch {
+          // Directory already removed or doesn't exist
+        }
       }
     }
+
+    return {
+      success: errors.length === 0,
+      restoredFiles,
+      errors,
+    };
   }
 }
 
