@@ -171,6 +171,89 @@ describe('Verification: ResultClassifier', () => {
       ];
       expect(classifySuiteOutcome(checks)).toBe('SKIPPED');
     });
+
+    it('returns PASSED when an optional check fails but all required checks pass', () => {
+      const checks: VerificationCheckResult[] = [
+        {
+          checkName: 'Required Tests',
+          command: 'npm test',
+          outcome: 'PASSED',
+          exitCode: 0,
+          durationMs: 200,
+          stdout: '',
+          stderr: '',
+          explanation: '',
+          optional: false,
+        },
+        {
+          checkName: 'Optional Flaky Linter',
+          command: 'npm run lint',
+          outcome: 'FAILED',
+          exitCode: 1,
+          durationMs: 100,
+          stdout: '',
+          stderr: '',
+          explanation: '',
+          optional: true,
+        },
+      ];
+      expect(classifySuiteOutcome(checks)).toBe('PASSED');
+    });
+
+    it('returns PASSED when an optional check times out but all required checks pass', () => {
+      const checks: VerificationCheckResult[] = [
+        {
+          checkName: 'Required Typecheck',
+          command: 'npm run typecheck',
+          outcome: 'PASSED',
+          exitCode: 0,
+          durationMs: 150,
+          stdout: '',
+          stderr: '',
+          explanation: '',
+        },
+        {
+          checkName: 'Optional Benchmarks',
+          command: 'npm run bench',
+          outcome: 'TIMED_OUT',
+          exitCode: null,
+          durationMs: 10000,
+          stdout: '',
+          stderr: '',
+          explanation: '',
+          optional: true,
+        },
+      ];
+      expect(classifySuiteOutcome(checks)).toBe('PASSED');
+    });
+
+    it('returns FAILED when a required check fails even if optional checks pass', () => {
+      const checks: VerificationCheckResult[] = [
+        {
+          checkName: 'Required Test Suite',
+          command: 'npm test',
+          outcome: 'FAILED',
+          exitCode: 1,
+          durationMs: 250,
+          stdout: '',
+          stderr: '',
+          explanation: '',
+          optional: false,
+        },
+        {
+          checkName: 'Optional Smoke Test',
+          command: 'node -e "process.exit(0)"',
+          outcome: 'PASSED',
+          exitCode: 0,
+          durationMs: 50,
+          stdout: '',
+          stderr: '',
+          explanation: '',
+          optional: true,
+        },
+      ];
+      expect(classifySuiteOutcome(checks)).toBe('FAILED');
+    });
   });
 
   describe('formatTruthfulExplanation', () => {
