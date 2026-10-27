@@ -12,12 +12,28 @@ import {
   CheckRunner,
   CheckRunnerOptions,
   VerificationSuiteInput,
+  RunCommandOptions,
 } from './check-runner.js';
 import {
   VerificationCheckResult,
   VerificationSuiteResult,
 } from '../domain/verification.js';
 import { classifySuiteOutcome } from './result-classifier.js';
+import { DockerRunner, type DockerRunnerOptions } from './sandbox/docker-runner.js';
+
+export interface IVerificationRunner {
+  runCheck(
+    checkName: string,
+    command: string,
+    options?: RunCommandOptions
+  ): Promise<VerificationCheckResult>;
+  runSuite?(
+    input: VerificationSuiteInput,
+    options?: RunCommandOptions
+  ): Promise<VerificationSuiteResult>;
+}
+
+export type VerificationExecutionMode = 'subprocess' | 'docker';
 
 export interface VerificationCheckDefinition {
   name: string;
@@ -27,6 +43,9 @@ export interface VerificationCheckDefinition {
 
 export interface VerificationOrchestratorOptions extends CheckRunnerOptions {
   failFast?: boolean;
+  runner?: IVerificationRunner;
+  executionMode?: VerificationExecutionMode;
+  dockerOptions?: DockerRunnerOptions;
   onCheckStart?: (check: VerificationCheckDefinition) => void;
   onCheckComplete?: (result: VerificationCheckResult) => void;
 }
@@ -54,12 +73,25 @@ function sanitizeVerificationOutput(text: string): string {
 }
 
 export class VerificationOrchestrator {
-  private readonly runner: CheckRunner;
+  private readonly runner: IVerificationRunner;
   private readonly options: VerificationOrchestratorOptions;
 
   constructor(options: VerificationOrchestratorOptions = {}) {
     this.options = options;
-    this.runner = new CheckRunner(options);
+    if (options.runner) {
+      this.runner = options.runner;
+    } else if (options.executionMode === 'docker') {
+      this.runner = new DockerRunner(options.dockerOptions);
+    } else {
+      this.runner = new CheckRunner(options);
+    }
+  }
+
+  /**
+   * Returns the configured verification runner instance.
+   */
+  public getRunner(): IVerificationRunner {
+    return this.runner;
   }
 
   /**

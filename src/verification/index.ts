@@ -10,3 +10,6 @@ export * from '../domain/verification.js';
 export * from './result-classifier.js';
 export * from './check-runner.js';
 export * from './verification-orchestrator.js';
+export * from './sandbox/resource-limits.js';
+export * from './sandbox/sandbox-policy.js';
+export * from './sandbox/docker-runner.js';

@@ -96,7 +96,7 @@ export function formatTruthfulExplanation(
     case 'ERROR':
       return `Check "${checkName}" encountered an execution error: ${error || 'Unknown process error'}.`;
     case 'SKIPPED':
-      return `Check "${checkName}" was skipped (unconfigured or disabled).`;
+      return `Check "${checkName}" was skipped (${error || 'unconfigured or disabled'}).`;
     default:
       return `Check "${checkName}" concluded with status: ${outcome}.`;
   }
