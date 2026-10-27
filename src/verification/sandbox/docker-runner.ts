@@ -21,6 +21,7 @@ import {
 import {
   CheckRunner,
   VerificationSuiteInput,
+  RunCommandOptions,
   tokenizeCommandLine,
   hasUnquotedShellMetacharacters,
 } from '../check-runner.js';
@@ -33,6 +34,7 @@ import {
   SandboxSecurityPolicy,
   resolveSecurityPolicy,
   formatDockerSecurityArgs,
+  validateMountPath,
 } from './sandbox-policy.js';
 
 export interface DockerRunnerOptions {
@@ -59,34 +61,94 @@ export class DockerRunner {
     this.workdir = options.workdir ?? '/workspace';
     this.resources = resolveResourceLimits(options.resources);
     this.policy = resolveSecurityPolicy(options.policy);
-    this.fallbackToSubprocess = options.fallbackToSubprocess ?? true;
+    // Hard security invariant: host fallback disabled by default
+    this.fallbackToSubprocess = options.fallbackToSubprocess ?? false;
     this.dockerBinary = options.dockerBinary ?? 'docker';
-    this.subprocessRunner = options.subprocessRunner ?? new CheckRunner({
-      defaultTimeoutMs: this.resources.timeoutMs,
-    });
+    this.subprocessRunner =
+      options.subprocessRunner ??
+      new CheckRunner({
+        defaultTimeoutMs: this.resources.timeoutMs,
+      });
   }
 
   /**
-   * Checks whether the Docker CLI and daemon are responsive.
+   * Health check for Docker engine: verifies daemon responsiveness using `docker info`.
    */
-  public async isDockerAvailable(): Promise<boolean> {
+  public async isDockerAvailable(timeoutMs = 3000): Promise<boolean> {
     return new Promise<boolean>((resolveCheck) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const proc = spawn(this.dockerBinary, ['--version'], {
+        const proc = spawn(this.dockerBinary, ['info'], {
           shell: false,
-          timeout: 3000,
           windowsHide: true,
         });
 
+        timer = setTimeout(() => {
+          try {
+            proc.kill('SIGKILL');
+          } catch {
+            // ignore
+          }
+          resolveCheck(false);
+        }, timeoutMs);
+
         proc.on('error', () => {
+          if (timer) clearTimeout(timer);
           resolveCheck(false);
         });
 
         proc.on('close', (code) => {
+          if (timer) clearTimeout(timer);
           resolveCheck(code === 0);
         });
       } catch {
+        if (timer) clearTimeout(timer);
         resolveCheck(false);
+      }
+    });
+  }
+
+  /**
+   * Forces stop and removal of a container by name, reporting cleanup outcomes truthfully.
+   */
+  public async cleanupContainer(
+    containerName: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolveCleanup) => {
+      try {
+        const rmProc = spawn(this.dockerBinary, ['rm', '-f', containerName], {
+          shell: false,
+          timeout: 5000,
+          windowsHide: true,
+        });
+
+        let errOutput = '';
+        rmProc.stderr?.on('data', (d: Buffer) => {
+          errOutput += d.toString();
+        });
+
+        rmProc.on('error', (err) => {
+          resolveCleanup({
+            success: false,
+            error: `Failed to invoke container cleanup (${err.message})`,
+          });
+        });
+
+        rmProc.on('close', (code) => {
+          if (code === 0 || errOutput.includes('No such container') || errOutput.includes('not found')) {
+            resolveCleanup({ success: true });
+          } else {
+            resolveCleanup({
+              success: false,
+              error: `Container cleanup exited with code ${code}: ${errOutput.trim()}`,
+            });
+          }
+        });
+      } catch (err) {
+        resolveCleanup({
+          success: false,
+          error: (err as Error).message,
+        });
       }
     });
   }
@@ -94,14 +156,24 @@ export class DockerRunner {
   /**
    * Constructs the full argument array for `docker run`.
    */
-  public buildDockerRunArgs(hostRepoPath: string, command: string): string[] {
+  public buildDockerRunArgs(
+    hostRepoPath: string,
+    command: string,
+    containerName?: string
+  ): string[] {
+    // Validate host mount path security
+    const mountCheck = validateMountPath(hostRepoPath);
+    if (!mountCheck.safe) {
+      throw new Error(`Insecure mount rejected: ${mountCheck.reason}`);
+    }
+
     const normalizedHost = resolve(hostRepoPath).replace(/\\/g, '/');
     const commandTokens = tokenizeCommandLine(command);
 
     const resourceArgs = formatDockerResourceArgs(this.resources);
     const securityArgs = formatDockerSecurityArgs(this.policy);
 
-    return [
+    const args: string[] = [
       'run',
       '--rm',
       '-i',
@@ -109,20 +181,37 @@ export class DockerRunner {
       `-v=${normalizedHost}:${this.workdir}:rw`,
       ...resourceArgs,
       ...securityArgs,
-      this.image,
-      ...commandTokens,
     ];
+
+    if (containerName) {
+      args.push(`--name=${containerName}`);
+    }
+
+    args.push(this.image, ...commandTokens);
+
+    return args;
   }
 
   /**
    * Runs a single verification check inside a disposable Docker container.
+   * Compatible with CheckRunner.runCheck signature.
    */
   public async runCheck(
     checkName: string,
     command: string,
-    repoRoot: string
+    optionsOrRepoRoot?: RunCommandOptions | string
   ): Promise<VerificationCheckResult> {
     const startTime = Date.now();
+
+    const repoRoot =
+      typeof optionsOrRepoRoot === 'string'
+        ? optionsOrRepoRoot
+        : optionsOrRepoRoot?.cwd ?? process.cwd();
+
+    const timeoutMs =
+      typeof optionsOrRepoRoot === 'object' && optionsOrRepoRoot.timeoutMs !== undefined
+        ? optionsOrRepoRoot.timeoutMs
+        : this.resources.timeoutMs;
 
     // 1. Guard against dangerous shell metacharacters
     if (hasUnquotedShellMetacharacters(command)) {
@@ -145,14 +234,36 @@ export class DockerRunner {
       };
     }
 
-    // 2. Check Docker daemon availability
+    // 2. Validate host mount path security (block docker sockets / root mounts)
+    const mountValidation = validateMountPath(repoRoot);
+    if (!mountValidation.safe) {
+      const durationMs = Date.now() - startTime;
+      return {
+        checkName,
+        command,
+        outcome: 'ERROR',
+        exitCode: 1,
+        durationMs,
+        stdout: '',
+        stderr: mountValidation.reason!,
+        explanation: formatTruthfulExplanation(
+          checkName,
+          'ERROR',
+          1,
+          durationMs,
+          mountValidation.reason
+        ),
+      };
+    }
+
+    // 3. Health check Docker daemon availability
     const dockerAvailable = await this.isDockerAvailable();
 
     if (!dockerAvailable) {
       if (this.fallbackToSubprocess) {
         const subResult = await this.subprocessRunner.runCheck(checkName, command, {
           cwd: repoRoot,
-          timeoutMs: this.resources.timeoutMs,
+          timeoutMs,
         });
 
         return {
@@ -169,19 +280,46 @@ export class DockerRunner {
         exitCode: null,
         durationMs,
         stdout: '',
-        stderr: 'Docker daemon is not responsive and subprocess fallback is disabled.',
+        stderr: 'Docker daemon is not responsive/available and host fallback is disabled by default.',
         explanation: formatTruthfulExplanation(
           checkName,
           'SKIPPED',
           null,
           durationMs,
-          'Docker daemon unavailable'
+          'Docker daemon unavailable (host fallback disabled)'
         ),
       };
     }
 
-    // 3. Execute in Docker container
-    const dockerArgs = this.buildDockerRunArgs(repoRoot, command);
+    // 4. Generate unique container name for lifecycle management
+    const uniqueContainerName = `repoguard-sandbox-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+
+    let dockerArgs: string[];
+    try {
+      dockerArgs = this.buildDockerRunArgs(repoRoot, command, uniqueContainerName);
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      return {
+        checkName,
+        command,
+        outcome: 'ERROR',
+        exitCode: 1,
+        durationMs,
+        stdout: '',
+        stderr: (err as Error).message,
+        explanation: formatTruthfulExplanation(
+          checkName,
+          'ERROR',
+          1,
+          durationMs,
+          (err as Error).message
+        ),
+      };
+    }
+
+    let cleanupWarning = '';
 
     const execResult = await new Promise<CommandExecutionResult>((resolveExec) => {
       let stdout = '';
@@ -195,15 +333,21 @@ export class DockerRunner {
           windowsHide: true,
         });
 
-        if (this.resources.timeoutMs > 0) {
-          timer = setTimeout(() => {
+        if (timeoutMs > 0) {
+          timer = setTimeout(async () => {
             timedOut = true;
             try {
               proc.kill('SIGKILL');
             } catch {
               // Ignore process kill errors
             }
-          }, this.resources.timeoutMs);
+
+            // Ensure timed-out container is explicitly stopped and removed
+            const cleanup = await this.cleanupContainer(uniqueContainerName);
+            if (!cleanup.success) {
+              cleanupWarning = ` (Container cleanup failed: ${cleanup.error})`;
+            }
+          }, timeoutMs);
         }
 
         proc.stdout?.on('data', (chunk: Buffer) => {
@@ -214,8 +358,12 @@ export class DockerRunner {
           stderr += chunk.toString();
         });
 
-        proc.on('error', (err: Error) => {
+        proc.on('error', async (err: Error) => {
           if (timer) clearTimeout(timer);
+          const cleanup = await this.cleanupContainer(uniqueContainerName);
+          if (!cleanup.success) {
+            cleanupWarning = ` (Container cleanup failed: ${cleanup.error})`;
+          }
           resolveExec({
             command,
             args: dockerArgs,
@@ -256,13 +404,16 @@ export class DockerRunner {
     });
 
     const outcome = classifyExecutionOutcome(execResult);
-    const explanation = formatTruthfulExplanation(
+    const baseExplanation = formatTruthfulExplanation(
       checkName,
       outcome,
       execResult.exitCode,
       execResult.durationMs,
       execResult.error
     );
+
+    const explanation = cleanupWarning ? `${baseExplanation}${cleanupWarning}` : baseExplanation;
+    const stderr = cleanupWarning ? `${execResult.stderr}\n[Cleanup Error]: ${cleanupWarning.trim()}` : execResult.stderr;
 
     return {
       checkName,
@@ -271,7 +422,7 @@ export class DockerRunner {
       exitCode: execResult.exitCode,
       durationMs: execResult.durationMs,
       stdout: execResult.stdout,
-      stderr: execResult.stderr,
+      stderr,
       explanation,
     };
   }
@@ -281,7 +432,7 @@ export class DockerRunner {
    */
   public async runSuite(
     input: VerificationSuiteInput,
-    repoRoot: string
+    optionsOrRepoRoot?: RunCommandOptions | string
   ): Promise<VerificationSuiteResult> {
     const startTime = Date.now();
     const timestamp = new Date().toISOString();
@@ -290,7 +441,10 @@ export class DockerRunner {
     const results: VerificationCheckResult[] = [];
 
     for (const item of checksList) {
-      const res = await this.runCheck(item.name, item.command, repoRoot);
+      const res = await this.runCheck(item.name, item.command, optionsOrRepoRoot);
+      if (item.optional !== undefined) {
+        res.optional = item.optional;
+      }
       results.push(res);
     }
 
